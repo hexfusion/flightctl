@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"strings"
+	"time"
 
 	grpc_v1 "github.com/flightctl/flightctl/api/grpc/v1"
 	"github.com/flightctl/flightctl/api/v1alpha1"
+	"github.com/flightctl/flightctl/internal/agent/device/fileio"
 	client "github.com/flightctl/flightctl/internal/api/client/agent"
 	baseclient "github.com/flightctl/flightctl/internal/client"
 	"github.com/flightctl/flightctl/internal/container"
+	"github.com/flightctl/flightctl/pkg/log"
 	"github.com/flightctl/flightctl/pkg/reqid"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -72,18 +76,88 @@ func IsComposeAvailable() bool {
 	return false
 }
 
+type PullSecret struct {
+	// Absolute path to the pull secret
+	Path string
+	// Cleanup function for temporary files, or no-op
+	Cleanup func()
+}
+
+// ResolvePullSecret returns the image pull secret path, preferring inline spec
+// auth then falling back to on disk.  Cleanup removes tmp files generated from
+// inline spec if found and is otherwise a no-op.
+func ResolvePullSecret(
+	log *log.PrefixLogger,
+	rw fileio.ReadWriter,
+	desired *v1alpha1.DeviceSpec,
+	authPath string,
+) (*PullSecret, bool, error) {
+	specContent, found := authFromSpec(log, desired, authPath)
+	if found {
+		path, cleanup, err := fileio.WriteTmpFile(rw, "os_auth_", "auth.json", []byte(specContent), 0600)
+		if err != nil {
+			return nil, false, fmt.Errorf("writing inline auth file: %w", err)
+		}
+		log.Debugf("Using inline auth from device spec")
+		return &PullSecret{Path: path, Cleanup: cleanup}, true, nil
+	}
+
+	exists, err := rw.PathExists(authPath)
+	if err != nil {
+		return nil, false, err
+	}
+	if exists {
+		log.Debugf("Using on-disk pull secret: %s", authPath)
+		return &PullSecret{Path: authPath, Cleanup: func() {}}, true, nil
+	}
+
+	return nil, false, nil
+}
+
+func authFromSpec(log *log.PrefixLogger, device *v1alpha1.DeviceSpec, authPath string) (string, bool) {
+	if device.Config == nil {
+		return "", false
+	}
+
+	for _, provider := range *device.Config {
+		spec, err := provider.AsInlineConfigProviderSpec()
+		if err != nil {
+			// best effort
+			log.Errorf("convert inline config provider: %v", err)
+			continue
+		}
+
+		for _, file := range spec.Inline {
+			if strings.TrimSpace(file.Path) == authPath {
+				return file.Content, true
+			}
+		}
+	}
+
+	return "", false
+}
+
 // ClientOption is a functional option for configuring the client.
 type ClientOption func(*clientOptions)
 
 type clientOptions struct {
 	retry          bool
 	pullSecretPath string
+	timeout        time.Duration
 }
 
 // WithRetry enables enables retry based on the backoff config provided.
 func WithRetry() ClientOption {
 	return func(opts *clientOptions) {
 		opts.retry = true
+	}
+}
+
+// Timeout sets a custom timeout for the client operation.
+// When defined, this value overrides the default client timeout.
+func Timeout(timeout time.Duration) ClientOption {
+	return func(opts *clientOptions) {
+		opts.timeout = timeout
 	}
 }
 
