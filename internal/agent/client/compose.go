@@ -12,10 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/flightctl/flightctl/api/v1alpha1"
 	"github.com/flightctl/flightctl/internal/agent/device/errors"
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
 	"github.com/flightctl/flightctl/internal/api/common"
 	"github.com/flightctl/flightctl/internal/util/validation"
+	"github.com/samber/lo"
 )
 
 const (
@@ -198,6 +200,63 @@ func ParseComposeSpecFromDir(reader fileio.Reader, dir string) (*common.ComposeS
 	return spec, nil
 }
 
+// ParseComposeSpecFromSpec parses a Compose specification from a slice of inline application content,
+// as used in inline application providers.
+func ParseComposeFromSpec(contents []v1alpha1.ApplicationContent) (*common.ComposeSpec, error) {
+	spec := &common.ComposeSpec{
+		Services: make(map[string]common.ComposeService),
+		Volumes:  make(map[string]common.ComposeVolume),
+	}
+
+	var baseFound bool
+	for _, c := range contents {
+		filename := c.Path
+		if filename == "" {
+			continue
+		}
+
+		contentBytes, err := fileio.DecodeContent(lo.FromPtr(c.Content), c.ContentEncoding)
+		if err != nil {
+			return nil, fmt.Errorf("decoding content %q: %w", filename, err)
+		}
+
+		isBase := stringInSlice(filename, BaseComposeFiles)
+		isOverride := stringInSlice(filename, OverrideComposeFiles)
+
+		if !isBase && !isOverride {
+			continue
+		}
+
+		partial, err := common.ParseComposeSpec(contentBytes)
+		if err != nil {
+			return nil, fmt.Errorf("parsing compose spec from %q: %w", filename, err)
+		}
+
+		// First match from BaseComposeFiles takes precedence
+		if isBase && !baseFound {
+			maps.Copy(spec.Services, partial.Services)
+			maps.Copy(spec.Volumes, partial.Volumes)
+			baseFound = true
+			continue
+		}
+
+		if isOverride && baseFound {
+			maps.Copy(spec.Services, partial.Services)
+			maps.Copy(spec.Volumes, partial.Volumes)
+		}
+	}
+
+	if !baseFound {
+		return nil, fmt.Errorf("%w: no base compose file found in inline spec (expected one of: %s)", errors.ErrNoComposeFile, strings.Join(BaseComposeFiles, ", "))
+	}
+
+	if len(spec.Services) == 0 {
+		return nil, errors.ErrNoComposeServices
+	}
+
+	return spec, nil
+}
+
 func readFirstExistingFile(files []string, dir string, reader fileio.Reader, spec *common.ComposeSpec) (bool, error) {
 	for _, filename := range files {
 		filePath := filepath.Join(dir, filename)
@@ -267,4 +326,13 @@ func NewComposeID(input string) string {
 // based on the application and volume names.
 func ComposeVolumeName(appName, volumeName string) string {
 	return NewComposeID(appName + "-" + volumeName)
+}
+
+func stringInSlice(s string, list []string) bool {
+	for _, item := range list {
+		if item == s {
+			return true
+		}
+	}
+	return false
 }
