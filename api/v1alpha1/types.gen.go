@@ -66,6 +66,15 @@ const (
 	DeviceDecommissionTargetTypeUnenroll     DeviceDecommissionTargetType = "Unenroll"
 )
 
+// Defines values for DeviceIntegrityCheckStatusType.
+const (
+	DeviceIntegrityCheckStatusFailed     DeviceIntegrityCheckStatusType = "Failed"
+	DeviceIntegrityCheckStatusNotPresent DeviceIntegrityCheckStatusType = "NotPresent"
+	DeviceIntegrityCheckStatusPassed     DeviceIntegrityCheckStatusType = "Passed"
+	DeviceIntegrityCheckStatusPending    DeviceIntegrityCheckStatusType = "Pending"
+	DeviceIntegrityCheckStatusUnknown    DeviceIntegrityCheckStatusType = "Unknown"
+)
+
 // Defines values for DeviceIntegrityStatusSummaryType.
 const (
 	DeviceIntegrityStatusFailed      DeviceIntegrityStatusSummaryType = "Failed"
@@ -520,7 +529,7 @@ type CpuResourceMonitorSpec struct {
 
 // CronExpression Cron expression format for scheduling times.
 // The format is `* * * * *`: - Minutes: `*` matches 0-59. - Hours: `*` matches 0-23. - Day of Month: `*` matches 1-31. - Month: `*` matches 1-12. - Day of Week: `*` matches 0-6.
-// Supported operators: - `*`: Matches any value (e.g., `*` in hours matches every hour). - `-`: Range (e.g., `0-8` for 12 AM to 8 AM). - `,`: List (e.g., `1,12` for 1st and 12th minute). - `/`: Step (e.g., `*/12` for every 12th minute). - Single value (e.g., `8` matches the 8th minute).
+// Supported operators: - `*`: Matches any value (e.g., `*` in hours matches every hour). - `-`: Range (e.g., `0-8` for 12 AM to 8 AM). - `,`: List (e.g., `1,12` for 1st and 12th minute). - `/`: Step (e.g., `*/12` for every 12th minute)/Tpm. - Single value (e.g., `8` matches the 8th minute).
 // Example: `* 0-8,16-23 * * *`.
 type CronExpression = string
 
@@ -596,13 +605,44 @@ type DeviceDecommission struct {
 // DeviceDecommissionTargetType Specifies the desired decommissioning method of the device.
 type DeviceDecommissionTargetType string
 
+// DeviceIntegrityCheckStatus DeviceIntegrityCheckStatus represents the status of the integrity check performed on the device.
+type DeviceIntegrityCheckStatus struct {
+	// Info Human-readable information about the integrity check status.
+	Info *string `json:"info,omitempty"`
+
+	// Status Status of the integrity check performed on the device.
+	Status DeviceIntegrityCheckStatusType `json:"status"`
+}
+
+// DeviceIntegrityCheckStatusType Status of the integrity check performed on the device.
+type DeviceIntegrityCheckStatusType string
+
 // DeviceIntegrityStatus Summary status of the integrity of the device.
 type DeviceIntegrityStatus struct {
+	// DeviceIdentity DeviceIntegrityCheckStatus represents the status of the integrity check performed on the device.
+	DeviceIdentity *DeviceIntegrityCheckStatus `json:"deviceIdentity,omitempty"`
+
 	// Info Human readable information about the last integrity transition.
 	Info *string `json:"info,omitempty"`
 
+	// LastVerified Timestamp of the last integrity verification.
+	LastVerified *time.Time `json:"lastVerified,omitempty"`
+
 	// Status Status of the integrity of the device.
 	Status DeviceIntegrityStatusSummaryType `json:"status"`
+	Tpm    *struct {
+		// Certified Whether the TPM is signed by a known and trusted CA.
+		Certified *bool `json:"certified,omitempty"`
+
+		// Info Human-readable information about the integrity check status.
+		Info *string `json:"info,omitempty"`
+
+		// Status Status of the integrity check performed on the device.
+		Status DeviceIntegrityCheckStatusType `json:"status"`
+
+		// Vendor TPM manufacturer name.
+		Vendor *string `json:"vendor,omitempty"`
+	} `json:"tpm,omitempty"`
 }
 
 // DeviceIntegrityStatusSummaryType Status of the integrity of the device.
@@ -613,7 +653,7 @@ type DeviceLifecycleHookType string
 
 // DeviceLifecycleStatus Current status of the device lifecycle.
 type DeviceLifecycleStatus struct {
-	// Info Human readable information about the device lifecycle status.
+	// Info Human-readable information about the device lifecycle status.
 	Info *string `json:"info,omitempty"`
 
 	// Status Status type of the device lifecycle.
@@ -953,14 +993,23 @@ type EnrollmentRequestList struct {
 
 // EnrollmentRequestSpec EnrollmentRequestSpec is a description of a EnrollmentRequest's target state.
 type EnrollmentRequestSpec struct {
+	// CredentialPublicKey PEM-encoded public key certified by the TPM; must match CSR.
+	CredentialPublicKey *string `json:"credentialPublicKey,omitempty"`
+
 	// Csr The PEM-encoded PKCS#10 certificate signing request.
 	Csr string `json:"csr"`
 
 	// DeviceStatus DeviceStatus represents information about the status of a device. Status may trail the actual state of a device.
 	DeviceStatus *DeviceStatus `json:"deviceStatus,omitempty"`
 
+	// EkCert X.509 public certificate for the TPM Endorsement Key (EK), issued by a trusted manufacturer CA.
+	EkCert *string `json:"ekCert,omitempty"`
+
 	// Labels A set of labels that the service will apply to this device when its enrollment is approved.
 	Labels *map[string]string `json:"labels,omitempty"`
+
+	// TpmCertifyCert TPM2 Certify structure or X.509 certificate signed by the EK.
+	TpmCertifyCert *string `json:"tpmCertifyCert,omitempty"`
 }
 
 // EnrollmentRequestStatus EnrollmentRequestStatus represents information about the status of a EnrollmentRequest.
@@ -1887,7 +1936,7 @@ type TimeZone = string
 type UpdateSchedule struct {
 	// At Cron expression format for scheduling times.
 	// The format is `* * * * *`: - Minutes: `*` matches 0-59. - Hours: `*` matches 0-23. - Day of Month: `*` matches 1-31. - Month: `*` matches 1-12. - Day of Week: `*` matches 0-6.
-	// Supported operators: - `*`: Matches any value (e.g., `*` in hours matches every hour). - `-`: Range (e.g., `0-8` for 12 AM to 8 AM). - `,`: List (e.g., `1,12` for 1st and 12th minute). - `/`: Step (e.g., `*/12` for every 12th minute). - Single value (e.g., `8` matches the 8th minute).
+	// Supported operators: - `*`: Matches any value (e.g., `*` in hours matches every hour). - `-`: Range (e.g., `0-8` for 12 AM to 8 AM). - `,`: List (e.g., `1,12` for 1st and 12th minute). - `/`: Step (e.g., `*/12` for every 12th minute)/Tpm. - Single value (e.g., `8` matches the 8th minute).
 	// Example: `* 0-8,16-23 * * *`.
 	At CronExpression `json:"at"`
 

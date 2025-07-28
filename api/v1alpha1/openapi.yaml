@@ -3880,7 +3880,7 @@ components:
         - `*`: Matches any value (e.g., `*` in hours matches every hour).
         - `-`: Range (e.g., `0-8` for 12 AM to 8 AM).
         - `,`: List (e.g., `1,12` for 1st and 12th minute).
-        - `/`: Step (e.g., `*/12` for every 12th minute).
+        - `/`: Step (e.g., `*/12` for every 12th minute)/Tpm.
         - Single value (e.g., `8` matches the 8th minute).
 
         Example: `* 0-8,16-23 * * *`.'
@@ -4173,8 +4173,34 @@ components:
           $ref: "#/components/schemas/DeviceLifecycleStatusType"
         info:
           type: string
-          description: Human readable information about the device lifecycle status.
+          description: Human-readable information about the device lifecycle status.  
       description: Current status of the device lifecycle.
+    DeviceIntegrityCheckStatus:
+      type: object
+      description: DeviceIntegrityCheckStatus represents the status of the integrity check performed on the device.
+      required:
+        - status
+      properties:
+        status:
+          $ref: "#/components/schemas/DeviceIntegrityCheckStatusType"
+        info:
+          type: string
+          description: Human-readable information about the integrity check status.
+    DeviceIntegrityCheckStatusType:
+      type: string
+      description: Status of the integrity check performed on the device.
+      enum:
+        - "Unknown"
+        - "NotPresent"
+        - "Pending"
+        - "Failed"
+        - "Passed"
+      x-enum-varnames:
+        - "DeviceIntegrityCheckStatusUnknown"
+        - "DeviceIntegrityCheckStatusNotPresent"
+        - "DeviceIntegrityCheckStatusPending"
+        - "DeviceIntegrityCheckStatusFailed"
+        - "DeviceIntegrityCheckStatusPassed"
     DeviceLifecycleStatusType:
       type: string
       enum:
@@ -4194,11 +4220,28 @@ components:
       required:
         - status
       properties:
+        deviceIdentity:
+          $ref: "#/components/schemas/DeviceIntegrityCheckStatus"
+        tpm:
+          allOf:
+            - $ref: "#/components/schemas/DeviceIntegrityCheckStatus"
+            - type: object
+              properties:
+                vendor:
+                  type: string
+                  description: TPM manufacturer name.
+                certified:
+                  type: boolean
+                  description: Whether the TPM is signed by a known and trusted CA.
         status:
           $ref: "#/components/schemas/DeviceIntegrityStatusSummaryType"
         info:
           type: string
           description: Human readable information about the last integrity transition.
+        lastVerified:
+          type: string
+          format: date-time
+          description: Timestamp of the last integrity verification.
     DeviceIntegrityStatusSummaryType:
       type: string
       description: Status of the integrity of the device.
@@ -4372,6 +4415,15 @@ components:
         csr:
           type: string
           description: 'The PEM-encoded PKCS#10 certificate signing request.'
+        ekCert:
+          type: string
+          description: 'X.509 public certificate for the TPM Endorsement Key (EK), issued by a trusted manufacturer CA.'
+        tpmCertifyCert:
+          type: string
+          description: 'TPM2 Certify structure or X.509 certificate signed by the EK.'
+        credentialPublicKey:
+          type: string
+          description: 'PEM-encoded public key certified by the TPM; must match CSR.'
         deviceStatus:
           $ref: '#/components/schemas/DeviceStatus'
         labels:
