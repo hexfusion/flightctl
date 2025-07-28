@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 	"github.com/google/go-tpm/tpmutil"
+	"google.golang.org/protobuf/proto"
 	"sigs.k8s.io/yaml"
 )
 
@@ -213,6 +214,29 @@ func (t *Client) AttestationCollector(ctx context.Context) string {
 		return ""
 	}
 	return att.String()
+}
+
+// GetAttestationBytes returns TPM attestation as raw bytes for enrollment requests.
+// Reuses the existing stored LAK to avoid duplication with AttestationCollector
+func (t *Client) GetAttestationBytes(nonce []byte) ([]byte, error) {
+	if t == nil {
+		return nil, fmt.Errorf("TPM client is nil")
+	}
+	if t.conn == nil {
+		return nil, fmt.Errorf("TPM connection is unavailable")
+	}
+	if t.lak == nil {
+		return nil, fmt.Errorf("LAK is not available")
+	}
+
+	// Reuse existing infrastructure with stored LAK
+	att, err := t.GetAttestation(nonce, t.lak)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get TPM attestation: %w", err)
+	}
+
+	// Return raw protobuf bytes instead of string representation
+	return proto.Marshal(att)
 }
 
 // Close closes the TPM connection and flushes any transient handles.

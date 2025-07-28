@@ -329,6 +329,8 @@ func (b *LifecycleManager) enrollmentRequest(ctx context.Context, deviceStatus *
 		return fmt.Errorf("failed to create enrollment request: %w", err)
 	}
 
+	b.log.Infof("Creating enrollment request: %v", req.Spec)
+
 	err = wait.ExponentialBackoffWithContext(ctx, b.backoff, func(ctx context.Context) (bool, error) {
 		_, err := b.enrollmentClient.CreateEnrollmentRequest(ctx, *req)
 		if err != nil {

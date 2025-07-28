@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/flightctl/flightctl/api/v1alpha1"
@@ -60,14 +61,14 @@ func CreateEnrollmentRequest(
 		log.Warnf("EK certificate is empty (device will enroll without TPM attestation)")
 	}
 
-	// Attempt to get TPM certify certificate - this is the TPM2 Certify structure signed by the EK/AK
+	// Attempt to get TPM certify certificate
 	tpmCertifyCert, err := tpmProvider.GetTPMCertifyCert()
 	if err != nil {
-		log.Warnf("Failed to get TPM certify cert (continuing enrollment without TPM attestation): %v", err)
+		log.Warnf("Failed to get TPM attestation certificate: %v", err)
 	} else if len(tpmCertifyCert) > 0 {
-		tpmCertifyCertStr := string(tpmCertifyCert)
+		tpmCertifyCertStr := base64.StdEncoding.EncodeToString(tpmCertifyCert)
 		req.Spec.TpmCertifyCert = &tpmCertifyCertStr
-		log.Debugf("Successfully included TPM certify certificate in enrollment request")
+		log.Debugf("Successfully included TPM attestation certificate in enrollment request")
 	}
 
 	// Get the credential public key - this is the PEM-encoded public key that must match the CSR
@@ -77,7 +78,7 @@ func CreateEnrollmentRequest(
 	} else if len(credentialPubKey) > 0 {
 		credentialPubKeyStr := string(credentialPubKey)
 		req.Spec.CredentialPublicKey = &credentialPubKeyStr
-		log.Debugf("Successfully included credential public key in enrollment request")
+		log.Debugf("Successfully included TPM-certified credential public key in enrollment request")
 	}
 
 	return req, nil

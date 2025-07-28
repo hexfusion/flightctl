@@ -21,7 +21,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/protobuf/proto"
 )
 
 var _ Provider = (*tpmProvider)(nil)
@@ -222,38 +221,24 @@ func (t *tpmProvider) GetCertifyCert() ([]byte, error) {
 	return fccrypto.PEMEncodePublicKey(pub)
 }
 
-// GetTPMCertifyCert returns the TPM certify certificate that proves the LDevID was created by the TPM
+// GetTPMCertifyCert returns the TPM attestation report that proves the LDevID was created by the TPM
+// Reuses existing LAK and attestation infrastructure to avoid duplication
 func (t *tpmProvider) GetTPMCertifyCert() ([]byte, error) {
 	if t.client == nil {
 		return nil, fmt.Errorf("TPM client not initialized")
 	}
 
-	// Get the LAK for certification
-	lak, err := t.client.CreateLAK()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get LAK: %w", err)
-	}
-	defer lak.Close()
+	// Create qualifying data (nonce) for the attestation
+	qualifyingData := []byte("flightctl-device-cert")
 
-	// Use TPM2_Certify to create a certification that the LDevID was created by this TPM
-	// The LAK certifies the LDevID key, creating a TPMS_ATTEST structure
-	qualifyingData := []byte("flightctl-ldevid-cert")
-
-	// Create the certification using the LAK to certify the LDevID
-	// This proves the LDevID exists on the same TPM as the LAK
-	attestation, err := t.client.GetAttestation(qualifyingData, lak)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TPM certification: %w", err)
+	// Check if we have the minimum nonce length requirement
+	if len(qualifyingData) < 8 { // MinNonceLength from TPM client
+		// Pad to meet minimum requirements
+		qualifyingData = append(qualifyingData, make([]byte, 8-len(qualifyingData))...)
 	}
 
-	// Marshal the attestation to bytes for transport
-	// The attestation contains the TPMS_ATTEST structure signed by the LAK
-	certifyBytes, err := proto.Marshal(attestation)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal TPM certification: %w", err)
-	}
-
-	return certifyBytes, nil
+	// Use the new method that reuses the existing stored LAK - no duplication!
+	return t.client.GetAttestationBytes(qualifyingData)
 }
 
 func (t *tpmProvider) Close(ctx context.Context) error {
