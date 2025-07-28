@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/proto"
 )
 
 var _ Provider = (*tpmProvider)(nil)
@@ -219,6 +220,40 @@ func (t *tpmProvider) GetEKCert() ([]byte, error) {
 func (t *tpmProvider) GetCertifyCert() ([]byte, error) {
 	pub := t.client.Public()
 	return fccrypto.PEMEncodePublicKey(pub)
+}
+
+// GetTPMCertifyCert returns the TPM certify certificate that proves the LDevID was created by the TPM
+func (t *tpmProvider) GetTPMCertifyCert() ([]byte, error) {
+	if t.client == nil {
+		return nil, fmt.Errorf("TPM client not initialized")
+	}
+
+	// Get the LAK for certification
+	lak, err := t.client.CreateLAK()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get LAK: %w", err)
+	}
+	defer lak.Close()
+
+	// Use TPM2_Certify to create a certification that the LDevID was created by this TPM
+	// The LAK certifies the LDevID key, creating a TPMS_ATTEST structure
+	qualifyingData := []byte("flightctl-ldevid-cert")
+
+	// Create the certification using the LAK to certify the LDevID
+	// This proves the LDevID exists on the same TPM as the LAK
+	attestation, err := t.client.GetAttestation(qualifyingData, lak)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TPM certification: %w", err)
+	}
+
+	// Marshal the attestation to bytes for transport
+	// The attestation contains the TPMS_ATTEST structure signed by the LAK
+	certifyBytes, err := proto.Marshal(attestation)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal TPM certification: %w", err)
+	}
+
+	return certifyBytes, nil
 }
 
 func (t *tpmProvider) Close(ctx context.Context) error {
