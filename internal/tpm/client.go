@@ -74,6 +74,12 @@ func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config
 		return nil, fmt.Errorf("failed to open TPM device at %s: %w", tpm.resourceMgrPath, err)
 	}
 
+	// Validate that this is actually a TPM 2.0 device by querying it directly
+	if err := validateTPM2Device(conn, log); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("TPM version validation failed: %w", err)
+	}
+
 	client := &Client{
 		rmPath:  tpm.resourceMgrPath,
 		rw:      rw,
@@ -110,6 +116,28 @@ func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config
 	client.lak = lak
 
 	return client, nil
+}
+
+// validateTPM2Device validates that the connected device is actually a TPM 2.0
+// by trying to execute a simple TPM 2.0 command. This is more robust than reading sysfs files.
+func validateTPM2Device(conn io.ReadWriteCloser, log *log.PrefixLogger) error {
+	// Try to execute a simple TPM 2.0 specific command
+	// Using GetCapability command which is TPM 2.0 specific
+	getCapCmd := tpm2.GetCapability{
+		Capability:    0x00000006, // TPM_CAP_TPM_PROPERTIES
+		Property:      0x0100,     // TPM_PT_FAMILY_INDICATOR
+		PropertyCount: 1,
+	}
+
+	_, err := getCapCmd.Execute(transport.FromReadWriter(conn))
+	if err != nil {
+		log.Debugf("TPM GetCapability command failed: %v", err)
+		return fmt.Errorf("device does not respond to TPM 2.0 commands (may be TPM 1.2 or not a TPM): %w", err)
+	}
+
+	// If we got here without error, the device understands TPM 2.0 commands
+	log.Debugf("TPM 2.0 validation successful - device responds to TPM 2.0 commands")
+	return nil
 }
 
 // GetPath returns the TPM device path.
@@ -442,14 +470,24 @@ func (t *Client) endorsementKeyCert() (*client.Key, error) {
 	if err != nil {
 		errs = append(errs, fmt.Errorf("reading rsa endorsement %w", err))
 	} else {
-		return key, nil
+		if certData := key.CertDERBytes(); len(certData) > 0 {
+			return key, nil
+		}
+		// prevent resource leak if the key has no certificate data
+		key.Close()
+		errs = append(errs, fmt.Errorf("RSA endorsement key has no certificate data"))
 	}
 
 	key, err = client.EndorsementKeyECC(t.conn)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("reading ecc endorsement %w", err))
 	} else {
-		return key, nil
+		if certData := key.CertDERBytes(); len(certData) > 0 {
+			return key, nil
+		}
+		// prevent resource leak if the key has no certificate data
+		key.Close()
+		errs = append(errs, fmt.Errorf("ECC endorsement key has no certificate data"))
 	}
 	return nil, errors.Join(errs...)
 }
@@ -459,7 +497,17 @@ func (t *Client) EndorsementKeyCert() ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading cert: %w", err)
 	}
-	return key.CertDERBytes(), nil
+
+	// always close the key to prevent resource leaks
+	certData := key.CertDERBytes()
+	key.Close()
+
+	if len(certData) == 0 {
+		t.log.Warnf("TPM Endorsement Key certificate is empty - this TPM may not have an embedded EK certificate")
+		return nil, fmt.Errorf("endorsement key certificate is empty - this TPM may not have an embedded EK certificate")
+	}
+
+	return certData, nil
 }
 
 func (t *Client) EndorsementKeyPublic() ([]byte, error) {

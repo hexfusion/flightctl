@@ -13,6 +13,16 @@ import (
 	fccrypto "github.com/flightctl/flightctl/pkg/crypto"
 )
 
+// SignerConstructor is a function that creates a signer from a CA
+type SignerConstructor func(CA) Signer
+
+// DeviceEnrollmentSigner creates a constructor for device enrollment signers with optional TPM config
+func DeviceEnrollmentSigner(trustedTPMCAs []string) SignerConstructor {
+	return func(ca CA) Signer {
+		return NewSignerDeviceEnrollmentWithTPMConfig(ca, trustedTPMCAs)
+	}
+}
+
 type Signer interface {
 	Name() string
 	Verify(ctx context.Context, csr api.CertificateSigningRequest) error
@@ -38,6 +48,11 @@ type CASigners struct {
 }
 
 func NewCASigners(ca CA) *CASigners {
+	return NewCASignersWithTPMConfig(ca, nil)
+}
+
+// NewCASignersWithTPMConfig creates CA signers with optional TPM configuration
+func NewCASignersWithTPMConfig(ca CA, trustedTPMCAs []string) *CASigners {
 	cfg := ca.Config()
 
 	ret := &CASigners{
@@ -53,7 +68,7 @@ func NewCASigners(ca CA) *CASigners {
 			cfg.DeviceEnrollmentSignerName: WithSignerNameValidation(
 				WithCertificateReuse(
 					WithCSRValidation(
-						WithSignerNameExtension(NewSignerDeviceEnrollment, ca),
+						WithSignerNameExtension(DeviceEnrollmentSigner(trustedTPMCAs), ca),
 					),
 				),
 			),

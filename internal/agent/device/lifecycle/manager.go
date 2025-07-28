@@ -40,7 +40,6 @@ type LifecycleManager struct {
 
 	enrollmentClient client.Enrollment
 	defaultLabels    map[string]string
-	enrollmentCSR    []byte
 	statusManager    status.Manager
 	systemdClient    *client.Systemd
 	identityProvider identity.Provider
@@ -57,7 +56,6 @@ func NewManager(
 	managementKeyPath string,
 	deviceReadWriter fileio.ReadWriter,
 	enrollmentClient client.Enrollment,
-	enrollmentCSR []byte,
 	defaultLabels map[string]string,
 	statusManager status.Manager,
 	systemdClient *client.Systemd,
@@ -73,7 +71,6 @@ func NewManager(
 		managementKeyPath:    managementKeyPath,
 		deviceReadWriter:     deviceReadWriter,
 		enrollmentClient:     enrollmentClient,
-		enrollmentCSR:        enrollmentCSR,
 		defaultLabels:        defaultLabels,
 		backoff:              backoff,
 		statusManager:        statusManager,
@@ -206,7 +203,6 @@ func (m *LifecycleManager) wipeAndReboot(ctx context.Context) error {
 	m.deviceName = ""
 	m.enrollmentUIEndpoint = ""
 	m.enrollmentClient = nil
-	m.enrollmentCSR = nil
 
 	// TODO: incorporate before-reboot hooks
 	if err := m.systemdClient.Reboot(ctx); err != nil {
@@ -328,21 +324,13 @@ func (m *LifecycleManager) writeQRBanner(message, url string) error {
 }
 
 func (b *LifecycleManager) enrollmentRequest(ctx context.Context, deviceStatus *v1alpha1.DeviceStatus) error {
-	req := v1alpha1.EnrollmentRequest{
-		ApiVersion: "v1alpha1",
-		Kind:       "EnrollmentRequest",
-		Metadata: v1alpha1.ObjectMeta{
-			Name: &b.deviceName,
-		},
-		Spec: v1alpha1.EnrollmentRequestSpec{
-			Csr:          string(b.enrollmentCSR),
-			DeviceStatus: deviceStatus,
-			Labels:       &b.defaultLabels,
-		},
+	req, err := identity.CreateEnrollmentRequest(b.log, b.identityProvider, deviceStatus, b.defaultLabels)
+	if err != nil {
+		return fmt.Errorf("failed to create enrollment request: %w", err)
 	}
 
-	err := wait.ExponentialBackoffWithContext(ctx, b.backoff, func(ctx context.Context) (bool, error) {
-		_, err := b.enrollmentClient.CreateEnrollmentRequest(ctx, req)
+	err = wait.ExponentialBackoffWithContext(ctx, b.backoff, func(ctx context.Context) (bool, error) {
+		_, err := b.enrollmentClient.CreateEnrollmentRequest(ctx, *req)
 		if err != nil {
 			b.log.Warnf("failed to create enrollment request: %v", err)
 			return false, nil

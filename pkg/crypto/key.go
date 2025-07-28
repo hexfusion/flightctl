@@ -150,6 +150,17 @@ func PEMEncodeKey(key crypto.PrivateKey) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+func PEMEncodePublicKey(pubKey crypto.PublicKey) ([]byte, error) {
+	der, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return nil, fmt.Errorf("marshal public key: %w", err)
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: der,
+	}), nil
+}
+
 func LoadKey(keyFile string) (crypto.PrivateKey, error) {
 	pemBlock, err := os.ReadFile(keyFile)
 	if err != nil {

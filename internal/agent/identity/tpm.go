@@ -203,6 +203,24 @@ func (t *tpmProvider) WipeCredentials() error {
 	return nil
 }
 
+// GetEKCert returns the EK certificate in PEM format
+func (t *tpmProvider) GetEKCert() ([]byte, error) {
+	der, err := t.client.EndorsementKeyCert()
+	if err != nil {
+		return nil, err
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: der,
+	}), nil
+}
+
+// GetCertifyCert returns the certify certificate in PEM format
+func (t *tpmProvider) GetCertifyCert() ([]byte, error) {
+	pub := t.client.Public()
+	return fccrypto.PEMEncodePublicKey(pub)
+}
+
 func (t *tpmProvider) Close(ctx context.Context) error {
 	if t.client != nil {
 		return t.client.Close(ctx)

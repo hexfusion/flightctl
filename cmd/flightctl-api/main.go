@@ -40,7 +40,13 @@ func main() {
 	}
 	log.SetLevel(logLvl)
 
-	ca, _, err := crypto.EnsureCA(cfg.CA)
+	// Create CA - the signer will auto-detect TPM configuration
+	if len(cfg.Service.TrustedTPMCAs) > 0 {
+		log.Printf("TPM validation enabled with %d trusted CA(s)", len(cfg.Service.TrustedTPMCAs))
+	} else {
+		log.Printf("TPM validation disabled - no trusted TPM CAs configured")
+	}
+	ca, _, err := crypto.EnsureCAWithTPMCAs(cfg.CA, cfg.Service.TrustedTPMCAs)
 	if err != nil {
 		log.Fatalf("ensuring CA cert: %v", err)
 	}

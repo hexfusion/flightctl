@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
 	"github.com/flightctl/flightctl/pkg/log"
@@ -58,7 +59,7 @@ func (t *TPM) ValidateVersion2() error {
 	}
 	versionStr := string(bytes.TrimSpace(versionBytes))
 	if versionStr != "2" {
-		return fmt.Errorf("TPM is not version 2.0. Found version: %s", versionStr)
+		return fmt.Errorf("TPM is not version 2.0. Found version: %s (FlightCtl requires TPM 2.0)", versionStr)
 	}
 	return nil
 }
@@ -112,17 +113,25 @@ func resolveDefault(rw fileio.ReadWriter, logger *log.PrefixLogger) (*TPM, error
 
 	logger.Debugf("Found %d TPMs", len(tpms))
 
+	var versionErrors []string
 	for _, tpm := range tpms {
 		logger.Debugf("Trying TPM %q at %q", tpm.index, tpm.resourceMgrPath)
 		if tpm.Exists() {
 			logger.Debugf("Device %q exists, validating version", tpm.index)
 			if err := tpm.ValidateVersion2(); err == nil {
 				return &tpm, nil
+			} else {
+				logger.Debugf("Device %q validation failed: %v", tpm.index, err)
+				versionErrors = append(versionErrors, fmt.Sprintf("TPM %s: %v", tpm.index, err))
 			}
-			logger.Debugf("Device %q validation failed: %v", tpm.index, err)
 		} else {
 			logger.Debugf("Device %q does not exist", tpm.index)
 		}
+	}
+
+	if len(versionErrors) > 0 {
+		logger.Warnf("Found TPM devices but none are version 2.0: %v", versionErrors)
+		return nil, fmt.Errorf("no valid TPM 2.0 devices found (detected: %s)", strings.Join(versionErrors, ", "))
 	}
 
 	return nil, fmt.Errorf("no valid TPM 2.0 devices found")

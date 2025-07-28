@@ -55,6 +55,22 @@ func EnsureCA(cfg *ca.Config) (*CAClient, bool, error) {
 	return ca, fresh, nil
 }
 
+// EnsureCAWithTPMCAs creates a CA client with TPM validation enabled for device enrollment
+func EnsureCAWithTPMCAs(cfg *ca.Config, trustedTPMCAs []string) (*CAClient, bool, error) {
+	caBackend, fresh, err := ensureInternalCA(cfg)
+	if err != nil {
+		return nil, fresh, err
+	}
+	ca := &CAClient{
+		caBackend: caBackend,
+		Cfg:       cfg,
+	}
+
+	// Pass TPM configuration directly to signer creation
+	ca.signers = signer.NewCASignersWithTPMConfig(ca, trustedTPMCAs)
+	return ca, fresh, nil
+}
+
 func (caClient *CAClient) GetSigner(name string) signer.Signer {
 	return caClient.signers.GetSigner(name)
 }

@@ -62,6 +62,7 @@ type svcConfig struct {
 	HttpMaxRequestSize     int           `json:"httpMaxRequestSize,omitempty"`
 	EventRetentionPeriod   util.Duration `json:"eventRetentionPeriod,omitempty"`
 	AlertPollingInterval   util.Duration `json:"alertPollingInterval,omitempty"`
+	TrustedTPMCAs []string `json:"trustedTPMCAs,omitempty"` // File paths to trusted TPM manufacturer CAs (includes test CAs)
 }
 
 type kvConfig struct {

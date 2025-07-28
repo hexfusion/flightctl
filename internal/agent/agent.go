@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/flightctl/flightctl/internal/agent/client"
@@ -89,11 +90,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	deviceName, err := identityProvider.GetDeviceName()
 	if err != nil {
 		return fmt.Errorf("failed to get device name: %w", err)
-	}
-
-	csr, err := identityProvider.GenerateCSR(deviceName)
-	if err != nil {
-		return fmt.Errorf("failed to generate CSR: %w", err)
 	}
 
 	executer := &executer.CommonExecuter{}
@@ -215,7 +211,6 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.config.ManagementService.GetClientKeyPath(),
 		deviceReadWriter,
 		enrollmentClient,
-		csr,
 		a.config.DefaultLabels,
 		statusManager,
 		systemdClient,
@@ -341,13 +336,29 @@ func newEnrollmentClient(cfg *agent_config.Config) (client.Enrollment, error) {
 func (a *Agent) tryLoadTPM(writer fileio.ReadWriter) (*tpm.Client, error) {
 	if !a.config.TPM.Enabled {
 		a.log.Info("TPM auth is disabled. Skipping TPM setup.")
-
 		return nil, nil
 	}
 
 	tpmClient, err := tpm.NewClient(a.log, writer, a.config)
 	if err != nil {
+		// Check if this is a TPM version validation error and handle gracefully
+		if isTPMVersionError(err) {
+			a.log.Warnf("TPM detected but not version 2.0, falling back to file-based identity: %v", err)
+			return nil, nil // Return nil to use file-based identity provider
+		}
 		return nil, fmt.Errorf("creating TPM client: %w", err)
 	}
 	return tpmClient, nil
+}
+
+// isTPMVersionError checks if the error is related to TPM version validation
+func isTPMVersionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "TPM is not version 2.0") ||
+		strings.Contains(errStr, "no valid TPM 2.0 devices found") ||
+		strings.Contains(errStr, "TPM version validation failed") ||
+		strings.Contains(errStr, "device does not respond to TPM 2.0 commands")
 }

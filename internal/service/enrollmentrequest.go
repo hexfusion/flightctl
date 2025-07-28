@@ -105,6 +105,7 @@ func (h *ServiceHandler) CreateEnrollmentRequest(ctx context.Context, er api.Enr
 		return nil, api.StatusBadRequest(fmt.Sprintf("signer %q not found", csr.Spec.SignerName))
 	}
 
+	// TPM validation is handled by the signer during Verify()
 	if err := signer.Verify(ctx, csr); err != nil {
 		return nil, api.StatusBadRequest(err.Error())
 	}
