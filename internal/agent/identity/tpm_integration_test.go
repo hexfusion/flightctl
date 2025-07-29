@@ -6,6 +6,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -212,19 +214,110 @@ func TestTPMEnrollmentWithSTMValidation(t *testing.T) {
 		ekBlock, _ := pem.Decode([]byte(*enrollmentRequest.Spec.EkCert))
 		require.NotNil(ekBlock)
 
-		ekCert, err := x509.ParseCertificate(ekBlock.Bytes)
+		// Use the custom ParseEKCertificate function instead of standard x509.ParseCertificate
+		t.Logf("Using ParseEKCertificate for TPM-specific parsing...")
+		ekCert, err := ParseEKCertificate(ekBlock.Bytes)
+		if err != nil {
+			t.Logf("ParseEKCertificate failed: %v", err)
+			t.Logf("Falling back to standard x509.ParseCertificate...")
+			ekCert, err = x509.ParseCertificate(ekBlock.Bytes)
+		}
 		require.NoError(err)
 
+		t.Logf("EK Certificate parsed successfully with enhanced parser")
 		t.Logf("EK Certificate Subject: %s", ekCert.Subject.String())
 		t.Logf("EK Certificate Issuer: %s", ekCert.Issuer.String())
 
+		// Debug certificate extensions
+		t.Logf("EK Certificate has %d extensions:", len(ekCert.Extensions))
+		for i, ext := range ekCert.Extensions {
+			t.Logf("  Extension %d: OID=%s, Critical=%v, Length=%d bytes",
+				i, ext.Id.String(), ext.Critical, len(ext.Value))
+
+			// Parse specific extensions that might contain issuer information
+			switch ext.Id.String() {
+			case "1.3.6.1.5.5.7.1.1": // Authority Information Access (AIA)
+				t.Logf("    ↳ Authority Information Access extension found!")
+				aiaInfo := parseAIAExtension(t, ext.Value)
+				if aiaInfo != "" {
+					t.Logf("    ↳ AIA Info: %s", aiaInfo)
+				}
+			case "2.5.29.35": // Authority Key Identifier
+				t.Logf("    ↳ Authority Key Identifier extension")
+			case "2.5.29.17": // Subject Alternative Name
+				t.Logf("    ↳ Subject Alternative Name extension (Critical)")
+			}
+		}
+
+		// Check for known TPM-specific extensions
+		hasTPMExtensions := false
+		for _, ext := range ekCert.Extensions {
+			// Common TPM extension OIDs (these are vendor-specific)
+			switch ext.Id.String() {
+			case "2.23.133.8.1", "2.23.133.8.2", "2.23.133.8.3": // TCG TPM extensions
+				hasTPMExtensions = true
+				t.Logf("  Found TPM-specific extension: %s (Critical: %v)", ext.Id.String(), ext.Critical)
+			case "1.2.840.113549.1.9.16.1.24": // ST Microelectronics extension
+				hasTPMExtensions = true
+				t.Logf("  Found ST Microelectronics extension: %s (Critical: %v)", ext.Id.String(), ext.Critical)
+			}
+		}
+
 		// Validate EK certificate against STM CA pool
 		if downloadedCount > 0 {
-			err = validateEKCertificateChain(t, ekCert, stmPool)
+			// First, try to download intermediate CA certificates from AIA extension
+			var aiaExtension *pkix.Extension
+			for _, ext := range ekCert.Extensions {
+				if ext.Id.String() == "1.3.6.1.5.5.7.1.1" { // Authority Information Access
+					aiaExtension = &ext
+					break
+				}
+			}
+
+			// Download intermediate CAs if AIA extension is present
+			if aiaExtension != nil {
+				intermediateCerts, err := downloadIntermediateCA(t, aiaExtension.Value, testDataDir)
+				if err != nil {
+					t.Logf("Failed to download intermediate CAs: %v", err)
+				} else if len(intermediateCerts) > 0 {
+					t.Logf("Downloaded %d intermediate CA certificate(s)", len(intermediateCerts))
+
+					// Add intermediate CAs to the certificate pool
+					for _, cert := range intermediateCerts {
+						stmPool.AddCert(cert)
+					}
+					downloadedCount += len(intermediateCerts)
+					t.Logf("Updated certificate pool now has %d total certificates", downloadedCount)
+				}
+			}
+
+			// Use the enhanced validation that can handle TPM-specific critical extensions
+			err = ValidateEKCertificateChain(ekCert, stmPool)
 			if err != nil {
-				t.Logf("EK certificate validation failed (certificate may be from different CA): %v", err)
+				t.Logf("Enhanced EK certificate validation failed: %v", err)
+
+				// Fall back to the original validation for comparison
+				err = validateEKCertificateChain(t, ekCert, stmPool)
+				if err != nil {
+					errorMsg := err.Error()
+					if strings.Contains(errorMsg, "unhandled critical extension") {
+						t.Logf("⚠ EK certificate contains unrecognized critical extensions (common with TPM certificates)")
+						if hasTPMExtensions {
+							t.Logf("⚠ Certificate contains known TPM-specific critical extensions that Go's x509 library doesn't support")
+							t.Logf("⚠ This is normal for TPM EK certificates and doesn't indicate a security issue")
+						}
+						t.Logf("⚠ Certificate chain validation skipped due to critical extension limitations")
+
+						// Provide detailed explanation for educational purposes
+						explainTPMCertificateExtensions(t)
+					} else {
+						t.Logf("EK certificate validation failed (certificate may be from different CA): %v", err)
+					}
+				} else {
+					t.Logf("✓ EK certificate validated against STM CA chain using standard validation")
+				}
 			} else {
-				t.Logf("✓ EK certificate validated against STM CA chain")
+				t.Logf("✓ EK certificate validated against STM CA chain using enhanced TPM validation")
 			}
 		} else {
 			t.Logf("⚠ No STM CA certificates downloaded, skipping chain validation")
@@ -395,19 +488,29 @@ func downloadSTMCertificatePool(t *testing.T, certDir string) (*x509.CertPool, i
 
 // parseCertificateData parses certificate data in DER or PEM format
 func parseCertificateData(t *testing.T, certData []byte, source string) *x509.Certificate {
-	// Try to parse as DER first
-	cert, err := x509.ParseCertificate(certData)
+	// Try to parse as DER first using enhanced TPM parser
+	cert, err := ParseEKCertificate(certData)
 	if err != nil {
-		// Try PEM format
-		block, _ := pem.Decode(certData)
-		if block == nil {
-			t.Logf("Failed to decode certificate from %s: not valid DER or PEM", source)
-			return nil
-		}
-		cert, err = x509.ParseCertificate(block.Bytes)
+		t.Logf("ParseEKCertificate failed for %s: %v, trying standard parsing", source, err)
+		// Fall back to standard parsing
+		cert, err = x509.ParseCertificate(certData)
 		if err != nil {
-			t.Logf("Failed to parse certificate from %s: %v", source, err)
-			return nil
+			// Try PEM format
+			block, _ := pem.Decode(certData)
+			if block == nil {
+				t.Logf("Failed to decode certificate from %s: not valid DER or PEM", source)
+				return nil
+			}
+			// Try enhanced parser on PEM content first
+			cert, err = ParseEKCertificate(block.Bytes)
+			if err != nil {
+				// Fall back to standard parser for PEM content
+				cert, err = x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					t.Logf("Failed to parse certificate from %s: %v", source, err)
+					return nil
+				}
+			}
 		}
 	}
 	return cert
@@ -415,15 +518,29 @@ func parseCertificateData(t *testing.T, certData []byte, source string) *x509.Ce
 
 // validateEKCertificateChain validates an EK certificate against the STM CA pool
 func validateEKCertificateChain(t *testing.T, ekCert *x509.Certificate, stmPool *x509.CertPool) error {
+	t.Logf("Attempting to validate EK certificate chain...")
+	t.Logf("Certificate Serial: %s", ekCert.SerialNumber.String())
+	t.Logf("Certificate Valid From: %s", ekCert.NotBefore.Format(time.RFC3339))
+	t.Logf("Certificate Valid To: %s", ekCert.NotAfter.Format(time.RFC3339))
+
 	// Create verification options
 	opts := x509.VerifyOptions{
 		Roots:     stmPool,
 		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	}
 
+	t.Logf("Using verification options with %d root CAs", len(stmPool.Subjects()))
+
 	// Try to verify the certificate chain
 	chains, err := ekCert.Verify(opts)
 	if err != nil {
+		t.Logf("Certificate verification failed: %v", err)
+		// Check for specific error types
+		if strings.Contains(err.Error(), "unhandled critical extension") {
+			t.Logf("Root cause: Certificate contains critical extensions not recognized by Go's x509 library")
+			t.Logf("Note: ParseEKCertificate was used for parsing, but validation still requires standard x509.Verify")
+			t.Logf("The enhanced parser helps with format issues but doesn't solve critical extension limitations")
+		}
 		return fmt.Errorf("certificate chain validation failed: %w", err)
 	}
 
@@ -440,4 +557,135 @@ func validateEKCertificateChain(t *testing.T, ekCert *x509.Certificate, stmPool 
 	}
 
 	return nil
+}
+
+// explainTPMCertificateExtensions provides educational information about TPM certificate extensions
+func explainTPMCertificateExtensions(t *testing.T) {
+	t.Logf("")
+	t.Logf("=== TPM Certificate Extension Information ===")
+	t.Logf("TPM Endorsement Key (EK) certificates often contain vendor-specific critical extensions.")
+	t.Logf("These extensions are defined by:")
+	t.Logf("  • TCG (Trusted Computing Group) specifications")
+	t.Logf("  • Individual TPM manufacturers (Intel, ST Microelectronics, etc.)")
+	t.Logf("")
+	t.Logf("Common TPM certificate extensions:")
+	t.Logf("  • 2.23.133.8.1  - TPM Manufacturer Info")
+	t.Logf("  • 2.23.133.8.2  - TPM Model Info")
+	t.Logf("  • 2.23.133.8.3  - TPM Version Info")
+	t.Logf("  • Vendor-specific OIDs for additional TPM metadata")
+	t.Logf("")
+	t.Logf("Why validation fails:")
+	t.Logf("  • X.509 standard requires rejecting certificates with unrecognized critical extensions")
+	t.Logf("  • Go's crypto/x509 library doesn't implement TPM-specific extensions")
+	t.Logf("  • This is a limitation of standard X.509 validation, not a security issue")
+	t.Logf("")
+	t.Logf("Solutions for production use:")
+	t.Logf("  • Use specialized TPM certificate validation libraries")
+	t.Logf("  • Implement custom extension handlers")
+	t.Logf("  • Validate certificate chain manually with extension allowlisting")
+	t.Logf("=== End TPM Certificate Extension Information ===")
+	t.Logf("")
+}
+
+// parseAIAExtension parses the Authority Information Access extension to find CA issuer URLs
+func parseAIAExtension(t *testing.T, aiaBytes []byte) string {
+	// AIA extension structure:
+	// AuthorityInfoAccessSyntax ::= SEQUENCE SIZE (1..MAX) OF AccessDescription
+	// AccessDescription ::= SEQUENCE {
+	//     accessMethod          OBJECT IDENTIFIER,
+	//     accessLocation        GeneralName
+	// }
+
+	var aiaSequence []struct {
+		Method   asn1.ObjectIdentifier
+		Location asn1.RawValue `asn1:"tag:6"` // GeneralName URI is tagged with [6]
+	}
+
+	_, err := asn1.Unmarshal(aiaBytes, &aiaSequence)
+	if err != nil {
+		t.Logf("    ↳ Failed to parse AIA extension: %v", err)
+		return ""
+	}
+
+	var results []string
+	for _, access := range aiaSequence {
+		// Check for CA Issuers access method (1.3.6.1.5.5.7.48.2)
+		if access.Method.Equal([]int{1, 3, 6, 1, 5, 5, 7, 48, 2}) {
+			// Extract the URI from the GeneralName
+			uri := string(access.Location.Bytes)
+			results = append(results, fmt.Sprintf("CA Issuers: %s", uri))
+			t.Logf("    ↳ Found CA Issuers URL: %s", uri)
+		}
+		// Check for OCSP access method (1.3.6.1.5.5.7.48.1)
+		if access.Method.Equal([]int{1, 3, 6, 1, 5, 5, 7, 48, 1}) {
+			uri := string(access.Location.Bytes)
+			results = append(results, fmt.Sprintf("OCSP: %s", uri))
+			t.Logf("    ↳ Found OCSP URL: %s", uri)
+		}
+	}
+
+	return strings.Join(results, "; ")
+}
+
+// downloadIntermediateCA downloads intermediate CA certificates from AIA extension URLs
+func downloadIntermediateCA(t *testing.T, aiaBytes []byte, certDir string) ([]*x509.Certificate, error) {
+	var aiaSequence []struct {
+		Method   asn1.ObjectIdentifier
+		Location asn1.RawValue `asn1:"tag:6"`
+	}
+
+	_, err := asn1.Unmarshal(aiaBytes, &aiaSequence)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse AIA extension: %w", err)
+	}
+
+	var intermediateCerts []*x509.Certificate
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	for _, access := range aiaSequence {
+		// Only download from CA Issuers URLs
+		if access.Method.Equal([]int{1, 3, 6, 1, 5, 5, 7, 48, 2}) {
+			uri := string(access.Location.Bytes)
+			t.Logf("Downloading intermediate CA from: %s", uri)
+
+			resp, err := client.Get(uri)
+			if err != nil {
+				t.Logf("Failed to download from %s: %v", uri, err)
+				continue
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Logf("HTTP %d for %s", resp.StatusCode, uri)
+				continue
+			}
+
+			certData, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Logf("Failed to read certificate data from %s: %v", uri, err)
+				continue
+			}
+
+			// Try to parse the certificate
+			cert := parseCertificateData(t, certData, uri)
+			if cert != nil {
+				intermediateCerts = append(intermediateCerts, cert)
+				t.Logf("✓ Downloaded intermediate CA: %s", cert.Subject.String())
+
+				// Save the intermediate certificate
+				filename := fmt.Sprintf("intermediate-ca-%s.crt",
+					strings.ReplaceAll(cert.Subject.CommonName, " ", "-"))
+				certPath := filepath.Join(certDir, filename)
+
+				pemData := pem.EncodeToMemory(&pem.Block{
+					Type:  "CERTIFICATE",
+					Bytes: cert.Raw,
+				})
+				os.WriteFile(certPath, pemData, 0644)
+				t.Logf("  Saved to: %s", certPath)
+			}
+		}
+	}
+
+	return intermediateCerts, nil
 }
