@@ -1,0 +1,7 @@
+Certificate: st-tpm-ca-13-gstpmroot.crt
+Subject: CN=GlobalSign Trusted Platform Module Root CA,OU=GlobalSign Trusted Computing Certificate Authority,O=GlobalSign
+Issuer: CN=GlobalSign Trusted Platform Module Root CA,OU=GlobalSign Trusted Computing Certificate Authority,O=GlobalSign
+Serial: 4835703278459754069432750
+Valid From: 2009-03-18T10:00:00Z
+Valid To: 2049-03-18T10:00:00Z
+URL: https://secure.globalsign.com/cacert/gstpmroot.crt

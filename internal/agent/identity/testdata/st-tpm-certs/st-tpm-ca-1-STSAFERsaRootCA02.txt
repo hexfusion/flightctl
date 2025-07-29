@@ -1,0 +1,7 @@
+Certificate: st-tpm-ca-1-STSAFERsaRootCA02.crt
+Subject: CN=STSAFE RSA Root CA 02,O=STMicroelectronics NV,C=CH
+Issuer: CN=STSAFE RSA Root CA 02,O=STMicroelectronics NV,C=CH
+Serial: 93583579283458
+Valid From: 2022-01-20T00:00:00Z
+Valid To: 9999-12-31T00:00:00Z
+URL: http://sw-center.st.com/STSAFE/STSAFERsaRootCA02.crt

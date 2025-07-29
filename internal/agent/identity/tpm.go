@@ -24,6 +24,8 @@ import (
 )
 
 var _ Provider = (*tpmProvider)(nil)
+var _ TPMCapable = (*tpmProvider)(nil)
+var _ TPMProvider = (*tpmProvider)(nil)
 
 // tpmProvider implements identity management using TPM-based keys
 type tpmProvider struct {
@@ -239,6 +241,11 @@ func (t *tpmProvider) GetTPMCertifyCert() ([]byte, error) {
 
 	// Use the new method that reuses the existing stored LAK - no duplication!
 	return t.client.GetAttestationBytes(qualifyingData)
+}
+
+// GetTPM returns the TPM provider (itself) since this provider supports TPM functionality
+func (t *tpmProvider) GetTPM() (TPMProvider, bool) {
+	return t, true
 }
 
 func (t *tpmProvider) Close(ctx context.Context) error {
