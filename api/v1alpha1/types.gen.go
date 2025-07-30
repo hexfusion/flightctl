@@ -993,23 +993,35 @@ type EnrollmentRequestList struct {
 
 // EnrollmentRequestSpec EnrollmentRequestSpec is a description of a EnrollmentRequest's target state.
 type EnrollmentRequestSpec struct {
-	// CredentialPublicKey PEM-encoded public key certified by the TPM; must match CSR.
-	CredentialPublicKey *string `json:"credentialPublicKey,omitempty"`
-
 	// Csr The PEM-encoded PKCS#10 certificate signing request.
 	Csr string `json:"csr"`
 
 	// DeviceStatus DeviceStatus represents information about the status of a device. Status may trail the actual state of a device.
 	DeviceStatus *DeviceStatus `json:"deviceStatus,omitempty"`
 
-	// EkCert X.509 public certificate for the TPM Endorsement Key (EK), issued by a trusted manufacturer CA.
-	EkCert *string `json:"ekCert,omitempty"`
+	// EkCertificate X.509 public certificate for the TPM Endorsement Key (EK), issued by a trusted manufacturer CA.
+	EkCertificate *string `json:"ekCertificate,omitempty"`
 
 	// Labels A set of labels that the service will apply to this device when its enrollment is approved.
 	Labels *map[string]string `json:"labels,omitempty"`
 
-	// TpmCertifyCert TPM2 Certify structure or X.509 certificate signed by the EK.
-	TpmCertifyCert *string `json:"tpmCertifyCert,omitempty"`
+	// LakCertifyInfo Base64-encoded TPM2_Certify attestation info for Local Attestation Key (LAK) signed by EK.
+	LakCertifyInfo *string `json:"lakCertifyInfo,omitempty"`
+
+	// LakCertifySignature Base64-encoded TPM2_Certify signature over LAK attestation info, made by EK.
+	LakCertifySignature *string `json:"lakCertifySignature,omitempty"`
+
+	// LakPublicKey Base64-encoded DER public key of the Local Attestation Key (LAK).
+	LakPublicKey *string `json:"lakPublicKey,omitempty"`
+
+	// LdevidCertifyInfo Base64-encoded TPM2_Certify attestation info for Local Device Identity (LDevID) signed by EK.
+	LdevidCertifyInfo *string `json:"ldevidCertifyInfo,omitempty"`
+
+	// LdevidCertifySignature Base64-encoded TPM2_Certify signature over LDevID attestation info, made by EK.
+	LdevidCertifySignature *string `json:"ldevidCertifySignature,omitempty"`
+
+	// LdevidPublicKey Base64-encoded DER public key of the Local Device Identity (LDevID). Must match CSR public key.
+	LdevidPublicKey *string `json:"ldevidPublicKey,omitempty"`
 }
 
 // EnrollmentRequestStatus EnrollmentRequestStatus represents information about the status of a EnrollmentRequest.

@@ -15,6 +15,18 @@ import (
 const (
 	MinNonceLength = 8
 
+	// TPM 2.0 Capability Constants (TPM 2.0 Specification Part 2, Rev 1.65, Section 6.5)
+	// TPMCapTPMProperties represents capability for TPM properties
+	TPMCapTPMProperties = 0x00000006
+	// TPMPTFamilyIndicator represents the TPM family indicator property
+	TPMPTFamilyIndicator = 0x0100
+
+	// NVRAM Certificate Wrapper Constants (TCG PC Client Platform TPM Profile v1.05 Rev 14, §7.3.2)
+	// NVRAMCertPrefixLength is the length of the NVRAM certificate prefix
+	NVRAMCertPrefixLength = 3
+	// NVRAMCertHeaderLength is the total length of the NVRAM certificate header
+	NVRAMCertHeaderLength = 5
+
 	// TPM Handle Ranges
 	// PersistentHandleMin is the minimum valid persistent handle value.
 	persistentHandleMin = tpm2.TPMHandle(0x81000000)
@@ -26,6 +38,12 @@ const (
 	versionPathTemplate = "/sys/class/tpm/%s/tpm_version_major"
 	sysClassPath        = "/sys/class/tpm"
 	sysFsPathTemplate   = "/sys/class/tpm/%s"
+)
+
+var (
+	// NVRAMCertPrefix is the 3-byte prefix for certificates stored in TPM NVRAM
+	// Per TCG PC Client Platform TPM Profile v1.05 Rev 14, Section 7.3.2
+	NVRAMCertPrefix = []byte{0x10, 0x01, 0x00}
 )
 
 // TPM represents a TPM device and its associated file paths.

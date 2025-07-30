@@ -183,8 +183,8 @@ func TestTPMChainOfTrustVerification(t *testing.T) {
 	t.Logf("\n=== Testing Chain of Trust Verification ===")
 
 	// Test EK certificate chain validation if EK certificate is available
-	if enrollmentRequest.Spec.EkCert != nil && *enrollmentRequest.Spec.EkCert != "" {
-		ekBlock, _ := pem.Decode([]byte(*enrollmentRequest.Spec.EkCert))
+	if enrollmentRequest.Spec.EkCertificate != nil && *enrollmentRequest.Spec.EkCertificate != "" {
+		ekBlock, _ := pem.Decode([]byte(*enrollmentRequest.Spec.EkCertificate))
 		require.NotNil(ekBlock, "EK certificate must be valid PEM")
 
 		// Use the enhanced ParseEKCertificate function for TPM-specific parsing
@@ -295,8 +295,8 @@ func TestTPMChainOfTrustVerification(t *testing.T) {
 	t.Logf("Summary:")
 	t.Logf("  - Device name: %s", deviceName)
 	t.Logf("  - CSR generated and validated: ✓")
-	t.Logf("  - EK certificate present: %t", enrollmentRequest.Spec.EkCert != nil)
-	if enrollmentRequest.Spec.EkCert != nil {
+	t.Logf("  - EK certificate present: %t", enrollmentRequest.Spec.EkCertificate != nil)
+	if enrollmentRequest.Spec.EkCertificate != nil {
 		t.Logf("  - CSR key binding verification: ✓ (Direct EK or LDevID)")
 		t.Logf("  - LDevID attestation verification: ✓ (if applicable)")
 		t.Logf("  - EK certificate chain validation: ✓ (attempted)")

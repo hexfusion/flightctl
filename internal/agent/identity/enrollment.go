@@ -48,37 +48,61 @@ func CreateEnrollmentRequest(
 		return req, nil
 	}
 
-	// Attempt to get EK certificate - this is optional and should not fail enrollment
 	ekCert, err := tpmProvider.GetEKCert()
 	if err != nil {
 		log.Warnf("Failed to get EK cert (device will enroll without TPM attestation): %v", err)
 		// Continue with enrollment without EK certificate
 	} else if len(ekCert) > 0 {
 		ekCertStr := string(ekCert)
-		req.Spec.EkCert = &ekCertStr
+		req.Spec.EkCertificate = &ekCertStr
 		log.Debugf("Successfully included EK certificate in enrollment request")
 	} else {
 		log.Warnf("EK certificate is empty (device will enroll without TPM attestation)")
 	}
 
-	// Attempt to get TPM certify certificate
-	tpmCertifyCert, err := tpmProvider.GetTPMCertifyCert()
+	attestationBundle, err := tpmProvider.GetTCGAttestation()
 	if err != nil {
-		log.Warnf("Failed to get TPM attestation certificate: %v", err)
-	} else if len(tpmCertifyCert) > 0 {
-		tpmCertifyCertStr := base64.StdEncoding.EncodeToString(tpmCertifyCert)
-		req.Spec.TpmCertifyCert = &tpmCertifyCertStr
-		log.Debugf("Successfully included TPM attestation certificate in enrollment request")
-	}
+		log.Warnf("Failed to get TCG attestation bundle (device will enroll without full TPM attestation): %v", err)
+	} else if attestationBundle != nil {
+		log.Debugf("Successfully obtained TCG attestation bundle")
 
-	// Get the credential public key - this is the PEM-encoded public key that must match the CSR
-	credentialPubKey, err := tpmProvider.GetCertifyCert()
-	if err != nil {
-		log.Warnf("Failed to get credential public key (continuing enrollment without TPM attestation): %v", err)
-	} else if len(credentialPubKey) > 0 {
-		credentialPubKeyStr := string(credentialPubKey)
-		req.Spec.CredentialPublicKey = &credentialPubKeyStr
-		log.Debugf("Successfully included TPM-certified credential public key in enrollment request")
+		// populate LAK (Local Attestation Key) fields
+		if len(attestationBundle.LAKCertifyInfo) > 0 {
+			lakCertifyInfoStr := base64.StdEncoding.EncodeToString(attestationBundle.LAKCertifyInfo)
+			req.Spec.LakCertifyInfo = &lakCertifyInfoStr
+			log.Debugf("Successfully included LAK certify info in enrollment request")
+		}
+
+		if len(attestationBundle.LAKCertifySignature) > 0 {
+			lakCertifySignatureStr := base64.StdEncoding.EncodeToString(attestationBundle.LAKCertifySignature)
+			req.Spec.LakCertifySignature = &lakCertifySignatureStr
+			log.Debugf("Successfully included LAK certify signature in enrollment request")
+		}
+
+		if len(attestationBundle.LAKPublicKey) > 0 {
+			lakPublicKeyStr := base64.StdEncoding.EncodeToString(attestationBundle.LAKPublicKey)
+			req.Spec.LakPublicKey = &lakPublicKeyStr
+			log.Debugf("Successfully included LAK public key in enrollment request")
+		}
+
+		// populate LDevID (Local Device Identity) fields
+		if len(attestationBundle.LDevIDCertifyInfo) > 0 {
+			ldevidCertifyInfoStr := base64.StdEncoding.EncodeToString(attestationBundle.LDevIDCertifyInfo)
+			req.Spec.LdevidCertifyInfo = &ldevidCertifyInfoStr
+			log.Debugf("Successfully included LDevID certify info in enrollment request")
+		}
+
+		if len(attestationBundle.LDevIDCertifySignature) > 0 {
+			ldevidCertifySignatureStr := base64.StdEncoding.EncodeToString(attestationBundle.LDevIDCertifySignature)
+			req.Spec.LdevidCertifySignature = &ldevidCertifySignatureStr
+			log.Debugf("Successfully included LDevID certify signature in enrollment request")
+		}
+
+		if len(attestationBundle.LDevIDPublicKey) > 0 {
+			ldevidPublicKeyStr := base64.StdEncoding.EncodeToString(attestationBundle.LDevIDPublicKey)
+			req.Spec.LdevidPublicKey = &ldevidPublicKeyStr
+			log.Debugf("Successfully included LDevID public key in enrollment request")
+		}
 	}
 
 	return req, nil

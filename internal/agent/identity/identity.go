@@ -59,6 +59,8 @@ type TPMProvider interface {
 	GetEKCert() ([]byte, error)
 	// GetTPMCertifyCert returns the TPM certify certificate that proves the LDevID was created by the TPM
 	GetTPMCertifyCert() ([]byte, error)
+	// GetTCGAttestation returns the complete TCG compliant attestation bundle
+	GetTCGAttestation() (*tpm.AttestationBundle, error)
 }
 
 // TPMCapable is an optional interface that identity providers can implement
@@ -67,7 +69,6 @@ type TPMCapable interface {
 	// GetTPM returns the TPM provider if available, nil otherwise
 	GetTPM() (TPMProvider, bool)
 }
-
 
 // NewProvider creates an identity provider
 func NewProvider(

@@ -77,7 +77,6 @@ func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config
 		return nil, fmt.Errorf("failed to open TPM device at %s: %w", tpm.resourceMgrPath, err)
 	}
 
-	// Validate that this is actually a TPM 2.0 device by querying it directly
 	if err := validateTPM2Device(conn, log); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("TPM version validation failed: %w", err)
@@ -110,7 +109,7 @@ func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config
 		return nil, fmt.Errorf("reading LDevID public key: %w", err)
 	}
 
-	// Create Local Attestation Key
+	// create Local Attestation Key (LAK)
 	lak, err := client.CreateLAK()
 	if err != nil {
 		_ = client.Close(ctx)
@@ -121,25 +120,21 @@ func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config
 	return client, nil
 }
 
-// validateTPM2Device validates that the connected device is actually a TPM 2.0
-// by trying to execute a simple TPM 2.0 command. This is more robust than reading sysfs files.
+// validateTPM2Device validates that the connected device is actually TPM 2.0
 func validateTPM2Device(conn io.ReadWriteCloser, log *log.PrefixLogger) error {
-	// Try to execute a simple TPM 2.0 specific command
-	// Using GetCapability command which is TPM 2.0 specific
 	getCapCmd := tpm2.GetCapability{
-		Capability:    0x00000006, // TPM_CAP_TPM_PROPERTIES
-		Property:      0x0100,     // TPM_PT_FAMILY_INDICATOR
+		Capability:    TPMCapTPMProperties,
+		Property:      TPMPTFamilyIndicator,
 		PropertyCount: 1,
 	}
 
 	_, err := getCapCmd.Execute(transport.FromReadWriter(conn))
 	if err != nil {
 		log.Debugf("TPM GetCapability command failed: %v", err)
-		return fmt.Errorf("device does not respond to TPM 2.0 commands (may be TPM 1.2 or not a TPM): %w", err)
+		return fmt.Errorf("device is not a TPM 2.0 device: %w", err)
 	}
 
-	// If we got here without error, the device understands TPM 2.0 commands
-	log.Debugf("TPM 2.0 validation successful - device responds to TPM 2.0 commands")
+	log.Debugf("TPM 2.0 validation successful")
 	return nil
 }
 
@@ -148,7 +143,7 @@ func (t *Client) GetPath() string {
 	return t.sysPath
 }
 
-// GetLocalAttestationPubKey returns the public key of the Local Attestation Key.
+// GetLocalAttestationPubKey returns the public key of the Local Attestation Key (LAK).
 func (t *Client) GetLocalAttestationPubKey() crypto.PublicKey {
 	if t.lak == nil {
 		return nil
@@ -201,25 +196,25 @@ func (t *Client) AttestationCollector(ctx context.Context) string {
 		}
 		return ""
 	}
-	if t.lak == nil {
+
+	// Use TCG-compliant attestation for system info
+	bundle, err := t.GetTCGCompliantAttestation(t.currNonce)
+	if err != nil {
 		if t.log != nil {
-			t.log.Errorf("Cannot get TPM attestation: LAK is not available")
+			t.log.Errorf("Unable to get TCG attestation: %v", err)
 		}
 		return ""
 	}
 
-	att, err := t.GetAttestation(t.currNonce, t.lak)
-	if err != nil {
-		if t.log != nil {
-			t.log.Errorf("Unable to get TPM attestation: %v", err)
-		}
-		return ""
-	}
-	return att.String()
+	// Convert to string representation for system info
+	return fmt.Sprintf("TCG Attestation Bundle: EK=%d bytes, LAK=%d bytes, LDevID=%d bytes",
+		len(bundle.EKCert), len(bundle.LAKCertifyInfo), len(bundle.LDevIDCertifyInfo))
 }
 
 // GetAttestationBytes returns TPM attestation as raw bytes for enrollment requests.
-// Reuses the existing stored LAK to avoid duplication with AttestationCollector
+//
+// Deprecated: Use GetTCGAttestationBytes() instead for spec-compliant attestation.
+// This method wraps the deprecated GetAttestation() method.
 func (t *Client) GetAttestationBytes(nonce []byte) ([]byte, error) {
 	if t == nil {
 		return nil, fmt.Errorf("TPM client is nil")
@@ -231,13 +226,11 @@ func (t *Client) GetAttestationBytes(nonce []byte) ([]byte, error) {
 		return nil, fmt.Errorf("LAK is not available")
 	}
 
-	// Reuse existing infrastructure with stored LAK
 	att, err := t.GetAttestation(nonce, t.lak)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get TPM attestation: %w", err)
 	}
 
-	// Return raw protobuf bytes instead of string representation
 	return proto.Marshal(att)
 }
 
@@ -249,13 +242,12 @@ func (t *Client) Close(ctx context.Context) error {
 	}
 	var errs []error
 
-	// Close LAK if it exists
 	if t.lak != nil {
 		t.lak.Close()
 		t.lak = nil
 	}
 
-	// Flush transient handles before closing
+	// flush transient handles before closing
 	if t.srk != nil {
 		if err := t.flushContextForHandle(t.srk.Handle); err != nil {
 			errs = append(errs, fmt.Errorf("flushing SRK handle: %w", err))
@@ -344,6 +336,9 @@ func (t *Client) CreateLAK() (*client.Key, error) {
 
 // GetAttestation generates a TPM attestation using the provided nonce and attestation key.
 // The nonce must be at least MinNonceLength bytes long for security.
+//
+// Deprecated: Use GetTCGCompliantAttestation() instead for spec-compliant attestation.
+// This method uses go-tpm-tools' simplified attestation which doesn't follow TCG spec patterns.
 func (t *Client) GetAttestation(nonce []byte, ak *client.Key) (*pbattest.Attestation, error) {
 	// TODO - may want to use CertChainFetcher in the AttestOpts in the future
 	// see https://pkg.go.dev/github.com/google/go-tpm-tools/client#AttestOpts
@@ -681,7 +676,7 @@ func (t *Client) ensureLDevID(path string) (*tpm2.NamedHandle, error) {
 		return t.loadLDevIDFromBlob(createRsp.OutPublic, createRsp.OutPrivate)
 	}
 
-	// File exists but couldn't be loaded (corrupted, invalid format, etc.)
+	// File exists but couldn't be loaded
 	return nil, fmt.Errorf("loading blob from file %s: %w", path, err)
 }
 
@@ -693,7 +688,6 @@ func (t *Client) GetTCGAttestationBytes(qualifyingData []byte) ([]byte, error) {
 		return nil, fmt.Errorf("getting TCG compliant attestation: %w", err)
 	}
 
-	// Serialize the bundle (using JSON for simplicity and compatibility)
 	data, err := json.Marshal(bundle)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling attestation bundle: %w", err)
@@ -704,6 +698,6 @@ func (t *Client) GetTCGAttestationBytes(qualifyingData []byte) ([]byte, error) {
 
 // GetTCGAttestation returns the full TCG compliant attestation bundle
 // This includes EK certificate, LAK/LDevID certify operations, and public keys
-func (t *Client) GetTCGAttestation(qualifyingData []byte) (*AttestationBundle, error) {
-	return t.GetTCGCompliantAttestation(qualifyingData)
+func (t *Client) GetTCGAttestation(nonce []byte) (*AttestationBundle, error) {
+	return t.GetTCGCompliantAttestation(nonce)
 }
