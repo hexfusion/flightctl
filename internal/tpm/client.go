@@ -13,6 +13,8 @@ import (
 	"math/big"
 	"os"
 
+	"encoding/json"
+
 	agent_config "github.com/flightctl/flightctl/internal/agent/config"
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
 	"github.com/flightctl/flightctl/pkg/log"
@@ -681,4 +683,27 @@ func (t *Client) ensureLDevID(path string) (*tpm2.NamedHandle, error) {
 
 	// File exists but couldn't be loaded (corrupted, invalid format, etc.)
 	return nil, fmt.Errorf("loading blob from file %s: %w", path, err)
+}
+
+// GetTCGAttestationBytes returns a TCG compliant attestation bundle in serialized form
+// This provides all the required attestation data according to TCG spec requirements
+func (t *Client) GetTCGAttestationBytes(qualifyingData []byte) ([]byte, error) {
+	bundle, err := t.GetTCGCompliantAttestation(qualifyingData)
+	if err != nil {
+		return nil, fmt.Errorf("getting TCG compliant attestation: %w", err)
+	}
+
+	// Serialize the bundle (using JSON for simplicity and compatibility)
+	data, err := json.Marshal(bundle)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling attestation bundle: %w", err)
+	}
+
+	return data, nil
+}
+
+// GetTCGAttestation returns the full TCG compliant attestation bundle
+// This includes EK certificate, LAK/LDevID certify operations, and public keys
+func (t *Client) GetTCGAttestation(qualifyingData []byte) (*AttestationBundle, error) {
+	return t.GetTCGCompliantAttestation(qualifyingData)
 }

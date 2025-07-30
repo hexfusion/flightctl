@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/binary"
 	"encoding/pem"
@@ -22,7 +21,6 @@ import (
 	"github.com/flightctl/flightctl/internal/tpm"
 	fccrypto "github.com/flightctl/flightctl/pkg/crypto"
 	"github.com/flightctl/flightctl/pkg/log"
-	x509ext "github.com/google/go-attestation/x509"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -229,7 +227,7 @@ func (t *tpmProvider) GetCertifyCert() ([]byte, error) {
 }
 
 // GetTPMCertifyCert returns the TPM attestation report that proves the LDevID was created by the TPM
-// Reuses existing LAK and attestation infrastructure to avoid duplication
+// Now uses TCG compliant attestation with EK->LAK and EK->LDevID certify operations
 func (t *tpmProvider) GetTPMCertifyCert() ([]byte, error) {
 	if t.client == nil {
 		return nil, fmt.Errorf("TPM client not initialized")
@@ -244,8 +242,8 @@ func (t *tpmProvider) GetTPMCertifyCert() ([]byte, error) {
 		qualifyingData = append(qualifyingData, make([]byte, 8-len(qualifyingData))...)
 	}
 
-	// Use the new method that reuses the existing stored LAK - no duplication!
-	return t.client.GetAttestationBytes(qualifyingData)
+	// Use the new TCG compliant attestation method
+	return t.client.GetTCGAttestationBytes(qualifyingData)
 }
 
 // GetTPM returns the TPM provider (itself) since this provider supports TPM functionality
@@ -299,108 +297,60 @@ func ParseEKCertificate(ekCert []byte) (*x509.Certificate, error) {
 
 // ValidateEKCertificateChain validates an EK certificate chain while handling TPM-specific critical extensions
 func ValidateEKCertificateChain(cert *x509.Certificate, roots *x509.CertPool) error {
-	// First check if this certificate has TPM-specific critical extensions that we need to handle
-	hasTPMCriticalExtensions := false
-	var sanExtension *pkix.Extension
+	// TPM certificates often contain critical extensions that Go's x509 library doesn't recognize.
+	// We temporarily remove known TPM critical extensions from the unhandled list to allow
+	// standard validation to proceed, then restore them.
 
-	for i, ext := range cert.Extensions {
-		switch ext.Id.String() {
-		case "2.5.29.17": // Subject Alternative Name - often contains TPM-specific data
-			if ext.Critical {
-				hasTPMCriticalExtensions = true
-				sanExtension = &cert.Extensions[i]
-			}
-		case "2.23.133.8.1", "2.23.133.8.2", "2.23.133.8.3": // TCG TPM extensions
-			if ext.Critical {
-				hasTPMCriticalExtensions = true
-			}
-		case "1.2.840.113549.1.9.16.1.24": // ST Microelectronics TPM extension
-			if ext.Critical {
-				hasTPMCriticalExtensions = true
-			}
-		}
+	// Store original unhandled extensions
+	originalUnhandled := make([]asn1.ObjectIdentifier, len(cert.UnhandledCriticalExtensions))
+	copy(originalUnhandled, cert.UnhandledCriticalExtensions)
+
+	// Temporarily remove known TPM critical extensions
+	removeKnownTPMExtensions(cert)
+
+	// Attempt standard validation with full security checks
+	opts := x509.VerifyOptions{
+		Roots:     roots,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	}
+	_, err := cert.Verify(opts)
 
-	// If no TPM-specific critical extensions, use standard validation
-	if !hasTPMCriticalExtensions {
-		opts := x509.VerifyOptions{
-			Roots:     roots,
-			KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-		}
-		_, err := cert.Verify(opts)
-		return err
-	}
+	// Restore original unhandled extensions list
+	cert.UnhandledCriticalExtensions = originalUnhandled
 
-	// Handle TPM-specific extensions by creating a modified certificate for validation
-	return validateTPMCertificateWithExtensions(cert, roots, sanExtension)
+	return err
 }
 
-// validateTPMCertificateWithExtensions validates a TPM certificate by handling known critical extensions
-func validateTPMCertificateWithExtensions(cert *x509.Certificate, roots *x509.CertPool, sanExt *pkix.Extension) error {
-	// Parse the SAN extension using go-attestation's specialized parser
-	if sanExt != nil {
-		sanData, err := x509ext.ParseSubjectAltName(*sanExt)
-		if err != nil {
-			// If we can't parse the SAN extension with go-attestation,
-			// it might be a very non-standard format, but we'll continue validation
-		} else {
-			// Successfully parsed TPM-specific SAN data
-			if len(sanData.DirectoryNames) > 0 {
-				// SAN contains directory names - this is acceptable for TPM certificates
+// removeKnownTPMExtensions temporarily removes known TPM critical extensions
+// from the certificate's UnhandledCriticalExtensions list.
+//
+// This allows Go's standard x509.Verify() to proceed with full cryptographic
+// validation while bypassing only the specific extensions we know are safe.
+func removeKnownTPMExtensions(cert *x509.Certificate) {
+	// Define TPM-specific critical extensions that we can safely ignore during validation.
+	// These are commonly found in TPM EK certificates and contain vendor-specific data.
+	knownTPMExtensionOIDs := []asn1.ObjectIdentifier{
+		{2, 5, 29, 17}, // Subject Alternative Name (with TPM-specific directoryName content)
+		{2, 5, 29, 19}, // Basic Constraints (sometimes with vendor-specific values)
+		// Additional TPM extension OIDs can be added here as needed:
+		// {2, 23, 133, 8, 1}, // TCG TPM Manufacturer
+		// {2, 23, 133, 8, 2}, // TCG TPM Model
+		// {2, 23, 133, 8, 3}, // TCG TPM Version
+	}
+
+	// Filter out known TPM extensions from unhandled critical extensions
+	filtered := cert.UnhandledCriticalExtensions[:0] // Reuse slice capacity
+	for _, unhandledOID := range cert.UnhandledCriticalExtensions {
+		isKnownTPMExt := false
+		for _, knownOID := range knownTPMExtensionOIDs {
+			if unhandledOID.Equal(knownOID) {
+				isKnownTPMExt = true
+				break
 			}
-			if len(sanData.PermanentIdentifiers) > 0 {
-				// SAN contains permanent identifiers - common in TPM certificates
-			}
-			// The fact that go-attestation could parse it means it's a known TPM extension format
+		}
+		if !isKnownTPMExt {
+			filtered = append(filtered, unhandledOID)
 		}
 	}
-
-	// Perform manual certificate chain validation for TPM certificates
-	return validateCertificateChainManually(cert, roots)
-}
-
-// validateCertificateChainManually performs certificate chain validation without relying on Go's x509.Verify
-func validateCertificateChainManually(cert *x509.Certificate, roots *x509.CertPool) error {
-	// Check certificate validity period
-	now := time.Now()
-	if now.Before(cert.NotBefore) {
-		return fmt.Errorf("certificate is not yet valid (valid from %v)", cert.NotBefore)
-	}
-	if now.After(cert.NotAfter) {
-		return fmt.Errorf("certificate has expired (expired at %v)", cert.NotAfter)
-	}
-
-	// For TPM certificates with critical extensions, we'll do a simplified validation
-	// that checks basic certificate properties without using x509.Verify
-
-	// Check if the certificate issuer exists in our trusted roots
-	// This is a simplified check - we verify the issuer name matches
-	validIssuer := false
-	issuerBytes, err := asn1.Marshal(cert.Issuer.ToRDNSequence())
-	if err != nil {
-		return fmt.Errorf("failed to marshal certificate issuer: %w", err)
-	}
-
-	for _, subject := range roots.Subjects() {
-		if bytes.Equal(subject, issuerBytes) {
-			validIssuer = true
-			break
-		}
-	}
-
-	if !validIssuer {
-		return fmt.Errorf("certificate issuer not found in trusted CA pool")
-	}
-
-	// Additional TPM-specific validation could be added here
-	// For now, we accept the certificate if it has a trusted issuer and is within validity period
-
-	return nil
-}
-
-// findIssuerInPool finds a potential issuer certificate in the certificate pool
-func findIssuerInPool(cert *x509.Certificate, pool *x509.CertPool) *x509.Certificate {
-	// The x509.CertPool doesn't expose individual certificates easily
-	// For TPM certificate validation, we'll use a different approach in validateCertificateChainManually
-	return nil
+	cert.UnhandledCriticalExtensions = filtered
 }
