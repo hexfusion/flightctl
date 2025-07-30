@@ -58,6 +58,19 @@ func HashPublicKey(key crypto.PublicKey) ([]byte, error) {
 	}
 }
 
+// PublicKeysEqual compares two public keys for equality
+func PublicKeysEqual(key1, key2 crypto.PublicKey) bool {
+	// Convert both keys to their DER representation for comparison
+	der1, err1 := x509.MarshalPKIXPublicKey(key1)
+	der2, err2 := x509.MarshalPKIXPublicKey(key2)
+
+	if err1 != nil || err2 != nil {
+		return false
+	}
+
+	return bytes.Equal(der1, der2)
+}
+
 func hashECDSAKey(publicKey *ecdsa.PublicKey) []byte {
 	hash := sha256.New()
 	hash.Write(publicKey.X.Bytes())

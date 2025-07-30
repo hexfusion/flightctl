@@ -2,6 +2,8 @@ package tpm
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 
@@ -247,26 +249,27 @@ func VerifyAttestationBundle(bundle *AttestationBundle, trustedRoots *x509.CertP
 }
 
 // verifyTPM2CertifySignature verifies a TPM2_Certify signature
-func verifyTPM2CertifySignature(certifyInfo, signature []byte, ekPublicKey crypto.PublicKey) error {
-	// This is a simplified implementation - in practice you'd need to:
-	// 1. Parse the TPMS_ATTEST structure from certifyInfo
-	// 2. Hash the certifyInfo according to TPM spec
-	// 3. Verify the signature using the EK public key
-
-	// For now, just validate that we have the required components
+func verifyTPM2CertifySignature(certifyInfo, signature []byte, signingPublicKey crypto.PublicKey) error {
+	// Validate inputs
 	if len(certifyInfo) == 0 {
 		return fmt.Errorf("empty certify info")
 	}
 	if len(signature) == 0 {
 		return fmt.Errorf("empty signature")
 	}
-	if ekPublicKey == nil {
-		return fmt.Errorf("nil EK public key")
+	if signingPublicKey == nil {
+		return fmt.Errorf("nil signing public key")
 	}
 
-	// TODO: Implement full TPM2_Certify signature verification
-	// This would involve parsing TPMS_ATTEST, computing the proper hash,
-	// and verifying with the EK public key
+	// Simplified verification for stabilization
+	// This provides basic validation while the full TPM2_Certify verification is implemented
+	switch signingPublicKey.(type) {
+	case *rsa.PublicKey, *ecdsa.PublicKey:
+		// Supported key types - full verification will be implemented
+		// TODO: Parse TPMT_SIGNATURE and TPMS_ATTEST structures, verify signature
+	default:
+		return fmt.Errorf("unsupported public key type: %T", signingPublicKey)
+	}
 
 	return nil
 }

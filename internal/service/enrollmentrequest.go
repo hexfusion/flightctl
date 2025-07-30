@@ -312,7 +312,7 @@ func (h *ServiceHandler) allowCreationOrUpdate(ctx context.Context, orgId uuid.U
 }
 
 func enrollmentRequestToCSR(ca *crypto.CAClient, enrollmentRequest *api.EnrollmentRequest) api.CertificateSigningRequest {
-	return api.CertificateSigningRequest{
+	csr := api.CertificateSigningRequest{
 		ApiVersion: "v1alpha1",
 		Kind:       "CertificateSigningRequest",
 		Metadata: api.ObjectMeta{
@@ -323,6 +323,49 @@ func enrollmentRequestToCSR(ca *crypto.CAClient, enrollmentRequest *api.Enrollme
 			SignerName: ca.Cfg.DeviceEnrollmentSignerName,
 		},
 	}
+
+	// Embed TPM attestation data in CSR attributes for signer verification
+	if hasTPMAttestationData(enrollmentRequest) {
+		extraMap := make(map[string][]string)
+
+		// Add EK certificate if present
+		if enrollmentRequest.Spec.EkCertificate != nil {
+			extraMap["flightctl.io/tpm-ek-certificate"] = []string{*enrollmentRequest.Spec.EkCertificate}
+		}
+
+		// Add LAK attestation data if present
+		if enrollmentRequest.Spec.LakCertifyInfo != nil {
+			extraMap["flightctl.io/tpm-lak-certify-info"] = []string{*enrollmentRequest.Spec.LakCertifyInfo}
+		}
+		if enrollmentRequest.Spec.LakCertifySignature != nil {
+			extraMap["flightctl.io/tpm-lak-certify-signature"] = []string{*enrollmentRequest.Spec.LakCertifySignature}
+		}
+		if enrollmentRequest.Spec.LakPublicKey != nil {
+			extraMap["flightctl.io/tpm-lak-public-key"] = []string{*enrollmentRequest.Spec.LakPublicKey}
+		}
+
+		// Add LDevID attestation data if present
+		if enrollmentRequest.Spec.LdevidCertifyInfo != nil {
+			extraMap["flightctl.io/tpm-ldevid-certify-info"] = []string{*enrollmentRequest.Spec.LdevidCertifyInfo}
+		}
+		if enrollmentRequest.Spec.LdevidCertifySignature != nil {
+			extraMap["flightctl.io/tpm-ldevid-certify-signature"] = []string{*enrollmentRequest.Spec.LdevidCertifySignature}
+		}
+		if enrollmentRequest.Spec.LdevidPublicKey != nil {
+			extraMap["flightctl.io/tpm-ldevid-public-key"] = []string{*enrollmentRequest.Spec.LdevidPublicKey}
+		}
+
+		csr.Spec.Extra = &extraMap
+	}
+
+	return csr
+}
+
+// hasTPMAttestationData checks if the enrollment request contains TPM attestation data
+func hasTPMAttestationData(er *api.EnrollmentRequest) bool {
+	return er.Spec.EkCertificate != nil ||
+		er.Spec.LakCertifyInfo != nil ||
+		er.Spec.LdevidCertifyInfo != nil
 }
 
 // callbackEnrollmentRequestUpdated is the enrollment request-specific callback that handles enrollment request events
