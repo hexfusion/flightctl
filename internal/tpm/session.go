@@ -954,6 +954,104 @@ func (s *tpmSession) GenerateChallenge(secret []byte) ([]byte, []byte, error) {
 }
 
 // SolveChallenge uses TPM2_ActivateCredential to decrypt a credential challenge using the LAK as the ActivateHandle
+func (s *tpmSession) Seal(data []byte) ([]byte, error) {
+	// Ensure SRK is loaded
+	if s.srk == nil {
+		return nil, fmt.Errorf("SRK not loaded")
+	}
+
+	// Create a sealed blob using the SRK
+	// This uses TPM2_Create with a sealed data object
+	template := tpm2.TPMTPublic{
+		Type:    tpm2.TPMAlgKeyedHash,
+		NameAlg: tpm2.TPMAlgSHA256,
+		ObjectAttributes: tpm2.TPMAObject{
+			FixedTPM:     true,
+			FixedParent:  true,
+			UserWithAuth: true,
+			NoDA:         true,
+		},
+	}
+
+	// Use the data as the sensitive data
+	sensitive := tpm2.TPM2BSensitiveCreate{
+		Sensitive: &tpm2.TPMSSensitiveCreate{
+			Data: tpm2.NewTPMUSensitiveCreate(
+				&tpm2.TPM2BSensitiveData{
+					Buffer: data,
+				},
+			),
+		},
+	}
+
+	createCmd := tpm2.Create{
+		ParentHandle: *s.srk,
+		InSensitive:  sensitive,
+		InPublic:     tpm2.New2B(template),
+	}
+
+	createResp, err := createCmd.Execute(transport.FromReadWriter(s.conn))
+	if err != nil {
+		return nil, fmt.Errorf("sealing data: %w", err)
+	}
+
+	// Marshal both public and private parts together
+	sealedData := append(tpm2.Marshal(createResp.OutPublic), tpm2.Marshal(createResp.OutPrivate)...)
+	return sealedData, nil
+}
+
+func (s *tpmSession) Unseal(data []byte) ([]byte, error) {
+	// Ensure SRK is loaded
+	if s.srk == nil {
+		return nil, fmt.Errorf("SRK not loaded")
+	}
+
+	// Split the data into public and private parts
+	// First unmarshal the public part to know its size
+	public, err := tpm2.Unmarshal[tpm2.TPM2BPublic](data)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshaling public part: %w", err)
+	}
+
+	publicBytes := tpm2.Marshal(public)
+	if len(data) <= len(publicBytes) {
+		return nil, fmt.Errorf("invalid sealed data: missing private part")
+	}
+
+	// The rest is the private part
+	privateBytes := data[len(publicBytes):]
+	private, err := tpm2.Unmarshal[tpm2.TPM2BPrivate](privateBytes)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshaling private part: %w", err)
+	}
+
+	// Load the sealed object
+	loadCmd := tpm2.Load{
+		ParentHandle: *s.srk,
+		InPublic:     *public,
+		InPrivate:    *private,
+	}
+
+	loadResp, err := loadCmd.Execute(transport.FromReadWriter(s.conn))
+	if err != nil {
+		return nil, fmt.Errorf("loading sealed object: %w", err)
+	}
+	handle := &tpm2.NamedHandle{Handle: loadResp.ObjectHandle, Name: loadResp.Name}
+	defer s.flushHandle(handle)
+
+	// Unseal the data
+	unsealCmd := tpm2.Unseal{
+		ItemHandle: *handle,
+	}
+
+	unsealResp, err := unsealCmd.Execute(transport.FromReadWriter(s.conn))
+	if err != nil {
+		return nil, fmt.Errorf("unsealing data: %w", err)
+	}
+
+	return unsealResp.OutData.Buffer, nil
+}
+
 func (s *tpmSession) SolveChallenge(credentialBlob, encryptedSecret []byte) ([]byte, error) {
 	if len(credentialBlob) == 0 {
 		return nil, fmt.Errorf("credential blob is empty")

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -58,6 +59,22 @@ func (t *tpmProvider) Initialize(ctx context.Context) error {
 	if err := t.client.UpdateNonce(make([]byte, 8)); err != nil {
 		t.log.Warnf("Failed to update TPM nonce: %v", err)
 	}
+
+	// Load certificate from storage if it exists
+	storage := t.client.GetStorage()
+	sealedCert, err := storage.GetSealedData(tpm.ManagementCertKey)
+	if err == nil {
+		certData, err := t.client.Unseal(sealedCert)
+		if err != nil {
+			t.log.Warnf("Failed to unseal certificate: %v", err)
+		} else {
+			t.certificateData = certData
+			t.log.Info("Loaded certificate from TPM storage")
+		}
+	} else if !errors.Is(err, tpm.ErrNotFound) {
+		t.log.Warnf("Failed to read certificate from storage: %v", err)
+	}
+
 	return nil
 }
 
@@ -72,7 +89,21 @@ func (t *tpmProvider) GenerateCSR(deviceName string) ([]byte, error) {
 }
 
 func (t *tpmProvider) StoreCertificate(certPEM []byte) error {
+	// Store in memory for immediate use
 	t.certificateData = certPEM
+
+	// Seal and persist to disk
+	sealedCert, err := t.client.Seal(certPEM)
+	if err != nil {
+		return fmt.Errorf("failed to seal certificate: %w", err)
+	}
+
+	storage := t.client.GetStorage()
+	if err := storage.StoreSealedData(tpm.ManagementCertKey, sealedCert); err != nil {
+		return fmt.Errorf("failed to store sealed certificate: %w", err)
+	}
+
+	t.log.Info("Stored sealed certificate to TPM storage")
 	return nil
 }
 
@@ -212,12 +243,19 @@ func (t *tpmProvider) CreateGRPCClient(config *base_client.Config) (grpc_v1.Rout
 }
 
 func (t *tpmProvider) WipeCredentials() error {
-	// clear certificate data from memory
+	// Clear certificate data from memory
 	t.certificateData = nil
+
+	// Clear sealed certificate from storage
+	storage := t.client.GetStorage()
+	if err := storage.ClearSealedData(tpm.ManagementCertKey); err != nil && !errors.Is(err, tpm.ErrNotFound) {
+		t.log.Warnf("Failed to clear sealed certificate from storage: %v", err)
+	}
+
 	if err := t.client.Clear(); err != nil {
 		return fmt.Errorf("clearing TPM client: %w", err)
 	}
-	t.log.Info("Wiped TPM-stored certificate data from memory")
+	t.log.Info("Wiped TPM certificate data from memory and storage")
 	return nil
 }
 

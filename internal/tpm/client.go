@@ -30,6 +30,7 @@ var _ crypto.Signer = (*Client)(nil)
 // and attestation data for CSR generation.
 type Client struct {
 	session       Session
+	storage       Storage
 	log           *log.PrefixLogger
 	productModel  string
 	productSerial string
@@ -63,6 +64,8 @@ func newClientWithConnection(conn io.ReadWriteCloser, log *log.PrefixLogger, rw 
 	// TODO: make dynamic
 	keyAlgo := ECDSA
 
+	storage := NewFileStorage(rw, config.TPM.StorageFilePath, log)
+
 	session, err := NewSession(conn, rw, log, config.TPM.AuthEnabled, config.TPM.StorageFilePath, keyAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("creating TPM session: %w", err)
@@ -70,6 +73,7 @@ func newClientWithConnection(conn io.ReadWriteCloser, log *log.PrefixLogger, rw 
 
 	client := &Client{
 		session:       session,
+		storage:       storage,
 		log:           log,
 		productModel:  productModel,
 		productSerial: productSerial,
@@ -222,6 +226,21 @@ func (c *Client) Clear() error {
 		return nil
 	}
 	return c.session.Clear()
+}
+
+// Seal encrypts data and binds it to this TPM
+func (c *Client) Seal(data []byte) ([]byte, error) {
+	return c.session.Seal(data)
+}
+
+// Unseal decrypts data that was sealed to this TPM
+func (c *Client) Unseal(data []byte) ([]byte, error) {
+	return c.session.Unseal(data)
+}
+
+// GetStorage returns the TPM storage
+func (c *Client) GetStorage() Storage {
+	return c.storage
 }
 
 // Close closes the TPM session.

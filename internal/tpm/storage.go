@@ -21,6 +21,8 @@ type storageData struct {
 	LDevID         *keyData      `json:"ldevid,omitempty"`
 	LAK            *keyData      `json:"lak,omitempty"`
 	SealedPassword *passwordData `json:"sealed_password,omitempty"`
+	// SealedData holds generic sealed data, keyed by name
+	SealedData map[string]string `json:"sealed_data,omitempty"`
 }
 
 // keyData represents persisted key information
@@ -267,6 +269,54 @@ func (s *fileStorage) ClearPassword() error {
 		if err := password.Clear(); err != nil {
 			return fmt.Errorf("clearing password in data: %w", err)
 		}
+	}
+
+	return s.writeData(data)
+}
+
+// GetSealedData retrieves sealed data by key
+func (s *fileStorage) GetSealedData(key string) ([]byte, error) {
+	data, err := s.readData()
+	if err != nil {
+		return nil, err
+	}
+
+	if data.SealedData == nil {
+		return nil, fmt.Errorf("sealed data %s %w", key, ErrNotFound)
+	}
+
+	encodedData, exists := data.SealedData[key]
+	if !exists || encodedData == "" {
+		return nil, fmt.Errorf("sealed data %s %w", key, ErrNotFound)
+	}
+
+	return base64.StdEncoding.DecodeString(encodedData)
+}
+
+// StoreSealedData stores sealed data with a key
+func (s *fileStorage) StoreSealedData(key string, sealedData []byte) error {
+	data, err := s.readData()
+	if err != nil {
+		return err
+	}
+
+	if data.SealedData == nil {
+		data.SealedData = make(map[string]string)
+	}
+
+	data.SealedData[key] = base64.StdEncoding.EncodeToString(sealedData)
+	return s.writeData(data)
+}
+
+// ClearSealedData removes sealed data by key
+func (s *fileStorage) ClearSealedData(key string) error {
+	data, err := s.readData()
+	if err != nil {
+		return err
+	}
+
+	if data.SealedData != nil {
+		delete(data.SealedData, key)
 	}
 
 	return s.writeData(data)

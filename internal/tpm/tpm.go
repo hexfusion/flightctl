@@ -55,9 +55,20 @@ type Storage interface {
 	StorePassword(password []byte) error
 	// ClearPassword removes the stored password
 	ClearPassword() error
+	// GetSealedData retrieves sealed data by key name
+	GetSealedData(key string) ([]byte, error)
+	// StoreSealedData stores sealed data with a key name
+	StoreSealedData(key string, data []byte) error
+	// ClearSealedData removes sealed data by key name
+	ClearSealedData(key string) error
 	// Close closes the storage and releases any resources
 	Close() error
 }
+
+const (
+	// ManagementCertKey is the storage key for the management certificate
+	ManagementCertKey = "management_cert"
+)
 
 // Session manages active TPM state and operations
 type Session interface {
@@ -79,6 +90,10 @@ type Session interface {
 	GenerateChallenge(secret []byte) ([]byte, []byte, error)
 	// SolveChallenge decrypts the encryptedSecret to prove ownership of the credentials
 	SolveChallenge(credentialBlob, encryptedSecret []byte) ([]byte, error)
+	// Seal encrypts data and binds it to this TPM
+	Seal(data []byte) ([]byte, error)
+	// Unseal decrypts data that was sealed to this TPM
+	Unseal(data []byte) ([]byte, error)
 	// FlushAllTransientHandles aggressively flushes all transient handles
 	FlushAllTransientHandles() error
 	// Clear performs a best-effort clear of the TPM, resetting keys and auth

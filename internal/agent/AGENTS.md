@@ -57,6 +57,11 @@ testCases := []struct {
 - **One way to do things** - no duplicate functionality
 - Integrate with existing patterns
 
+## Code Style
+- **Minimal inline comments** - Only add comments for non-trivial operations
+- Avoid obvious comments like "// Create a new instance"
+- Comment complex algorithms, TPM operations, or non-obvious business logic
+
 ## Code Review Checklist
 - [ ] No unnecessary dependencies
 - [ ] Uses fileio for ALL disk operations
@@ -64,3 +69,4 @@ testCases := []struct {
 - [ ] No unwarranted async code
 - [ ] PR is minimal and focused
 - [ ] One way to do things
+- [ ] Minimal comments (only non-trivial operations)

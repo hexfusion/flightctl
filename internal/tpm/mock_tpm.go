@@ -67,6 +67,20 @@ func (mr *MockStorageMockRecorder) ClearPassword() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearPassword", reflect.TypeOf((*MockStorage)(nil).ClearPassword))
 }
 
+// ClearSealedData mocks base method.
+func (m *MockStorage) ClearSealedData(key string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearSealedData", key)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearSealedData indicates an expected call of ClearSealedData.
+func (mr *MockStorageMockRecorder) ClearSealedData(key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearSealedData", reflect.TypeOf((*MockStorage)(nil).ClearSealedData), key)
+}
+
 // Close mocks base method.
 func (m *MockStorage) Close() error {
 	m.ctrl.T.Helper()
@@ -112,6 +126,21 @@ func (mr *MockStorageMockRecorder) GetPassword() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPassword", reflect.TypeOf((*MockStorage)(nil).GetPassword))
 }
 
+// GetSealedData mocks base method.
+func (m *MockStorage) GetSealedData(key string) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSealedData", key)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSealedData indicates an expected call of GetSealedData.
+func (mr *MockStorageMockRecorder) GetSealedData(key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSealedData", reflect.TypeOf((*MockStorage)(nil).GetSealedData), key)
+}
+
 // StoreKey mocks base method.
 func (m *MockStorage) StoreKey(keyType KeyType, public tpm2.TPM2BPublic, private tpm2.TPM2BPrivate) error {
 	m.ctrl.T.Helper()
@@ -138,6 +167,20 @@ func (m *MockStorage) StorePassword(password []byte) error {
 func (mr *MockStorageMockRecorder) StorePassword(password any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorePassword", reflect.TypeOf((*MockStorage)(nil).StorePassword), password)
+}
+
+// StoreSealedData mocks base method.
+func (m *MockStorage) StoreSealedData(key string, data []byte) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StoreSealedData", key, data)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StoreSealedData indicates an expected call of StoreSealedData.
+func (mr *MockStorageMockRecorder) StoreSealedData(key, data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StoreSealedData", reflect.TypeOf((*MockStorage)(nil).StoreSealedData), key, data)
 }
 
 // MockSession is a mock of Session interface.
@@ -312,6 +355,21 @@ func (mr *MockSessionMockRecorder) LoadKey(keyType any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadKey", reflect.TypeOf((*MockSession)(nil).LoadKey), keyType)
 }
 
+// Seal mocks base method.
+func (m *MockSession) Seal(data []byte) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Seal", data)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Seal indicates an expected call of Seal.
+func (mr *MockSessionMockRecorder) Seal(data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Seal", reflect.TypeOf((*MockSession)(nil).Seal), data)
+}
+
 // Sign mocks base method.
 func (m *MockSession) Sign(keyType KeyType, digest []byte) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -340,4 +398,19 @@ func (m *MockSession) SolveChallenge(credentialBlob, encryptedSecret []byte) ([]
 func (mr *MockSessionMockRecorder) SolveChallenge(credentialBlob, encryptedSecret any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SolveChallenge", reflect.TypeOf((*MockSession)(nil).SolveChallenge), credentialBlob, encryptedSecret)
+}
+
+// Unseal mocks base method.
+func (m *MockSession) Unseal(data []byte) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unseal", data)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Unseal indicates an expected call of Unseal.
+func (mr *MockSessionMockRecorder) Unseal(data any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unseal", reflect.TypeOf((*MockSession)(nil).Unseal), data)
 }
