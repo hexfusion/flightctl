@@ -233,6 +233,9 @@ func (a *Agent) syncDeviceSpec(ctx context.Context) {
 }
 
 func (a *Agent) rollbackDevice(ctx context.Context, current, desired *v1alpha1.Device, syncFn func(context.Context, *v1alpha1.Device, *v1alpha1.Device) error) error {
+	// cleanup any incomplete prefetch operations and temporary files before rollback
+	a.prefetchManager.Cleanup()
+
 	updateErr := a.statusManager.UpdateCondition(ctx, v1alpha1.Condition{
 		Type:    v1alpha1.ConditionTypeDeviceUpdating,
 		Status:  v1alpha1.ConditionStatusTrue,
@@ -375,7 +378,7 @@ func (a *Agent) syncDevice(ctx context.Context, current, desired *v1alpha1.Devic
 		}
 	}
 
-	if err := a.applicationsController.Sync(ctx, current.Spec, desired.Spec); err != nil {
+	if err := a.applicationsController.Sync(ctx, current, desired); err != nil {
 		return fmt.Errorf("applications: %w", err)
 	}
 

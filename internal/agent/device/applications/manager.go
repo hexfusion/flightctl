@@ -51,6 +51,13 @@ func (m *manager) Ensure(ctx context.Context, provider provider.Provider) error 
 			return nil
 		}
 		if err := provider.Install(ctx); err != nil {
+			// For embedded apps, don't fail the sync - just log and track them
+			// They'll show as failed/degraded in status
+			if provider.Spec().Embedded {
+				m.log.Warnf("Embedded application %s failed to install: %v", provider.Name(), err)
+				// Still add to monitor to track its failed state
+				return m.podmanMonitor.Ensure(NewApplication(provider))
+			}
 			return fmt.Errorf("installing application: %w", err)
 		}
 		return m.podmanMonitor.Ensure(NewApplication(provider))
@@ -89,21 +96,23 @@ func (m *manager) Update(ctx context.Context, provider provider.Provider) error 
 }
 
 func (m *manager) BeforeUpdate(ctx context.Context, desired *v1alpha1.DeviceSpec) error {
-	if desired.Applications == nil || len(*desired.Applications) == 0 {
-		m.log.Debug("No applications to pre-check")
-		return nil
-	}
 	m.log.Debug("Pre-checking application dependencies")
 	defer m.log.Debug("Finished pre-checking application dependencies")
 
-	providers, err := provider.FromDeviceSpec(ctx, m.log, m.podmanMonitor.client, m.readWriter, desired, provider.WithEmbedded())
+	_, err := provider.FromDeviceSpec(ctx, m.log, m.podmanMonitor.client, m.readWriter, desired, provider.WithVerify())
 	if err != nil {
-		return fmt.Errorf("parsing apps: %w", err)
+		return fmt.Errorf("spec declared application verification failed: %w", err)
 	}
 
-	// the prefetch manager now handles scheduling internally via registered functions
-	// we only need to verify providers once images are ready
-	return m.verifyProviders(ctx, providers)
+	// Skip verification of embedded apps - they're already on disk and may have
+	// test/invalid images that would fail prefetch. They'll be validated during
+	// actual execution if they're not already running.
+	_, err = provider.FromFilesystem(ctx, m.log, m.podmanMonitor.client, m.readWriter)
+	if err != nil {
+		return fmt.Errorf("embedded application discovery failed: %w", err)
+	}
+
+	return nil
 }
 
 func (m *manager) resolvePullSecret(desired *v1alpha1.DeviceSpec) (*client.PullSecret, error) {
@@ -127,15 +136,6 @@ func (m *manager) collectOCITargets(providers []provider.Provider, secret *clien
 		targets = append(targets, providerTargets...)
 	}
 	return targets, nil
-}
-
-func (m *manager) verifyProviders(ctx context.Context, providers []provider.Provider) error {
-	for _, provider := range providers {
-		if err := provider.Verify(ctx); err != nil {
-			return fmt.Errorf("verify app provider: %w", err)
-		}
-	}
-	return nil
 }
 
 func (m *manager) AfterUpdate(ctx context.Context) error {
@@ -165,17 +165,23 @@ func (m *manager) Stop(ctx context.Context) error {
 
 // CollectOCITargets returns a function that collects OCI targets from applications
 func (m *manager) CollectOCITargets(ctx context.Context, current, desired *v1alpha1.DeviceSpec) ([]dependency.OCIPullTarget, error) {
-	if desired.Applications == nil || len(*desired.Applications) == 0 {
-		m.log.Debug("No applications to collect OCI targets from")
-		return nil, nil
-	}
-
 	m.log.Debug("Collecting OCI targets from applications")
 
-	// parse applications and create providers
-	providers, err := provider.FromDeviceSpec(ctx, m.log, m.podmanMonitor.client, m.readWriter, desired, provider.WithEmbedded())
+	providers, err := provider.FromDeviceSpec(ctx, m.log, m.podmanMonitor.client, m.readWriter, desired)
 	if err != nil {
 		return nil, fmt.Errorf("parsing applications: %w", err)
+	}
+
+	embeddedProviders, err := provider.FromFilesystem(ctx, m.log, m.podmanMonitor.client, m.readWriter)
+	if err != nil {
+		m.log.Warnf("Failed to parse embedded applications for OCI targets: %v", err)
+	} else {
+		providers = append(providers, embeddedProviders...)
+	}
+
+	if len(providers) == 0 {
+		m.log.Debug("No applications to collect OCI targets from")
+		return nil, nil
 	}
 
 	// resolve pull secret
@@ -183,14 +189,11 @@ func (m *manager) CollectOCITargets(ctx context.Context, current, desired *v1alp
 	if err != nil {
 		return nil, fmt.Errorf("resolving pull secret: %w", err)
 	}
-	// note: cleanup is now handled by the prefetch manager after pull completes
 
-	// collect OCI targets from all providers
 	targets, err := m.collectOCITargets(providers, secret)
 	if err != nil {
 		return nil, fmt.Errorf("collecting OCI targets: %w", err)
 	}
 
-	m.log.Debugf("Collected %d OCI targets from applications", len(targets))
 	return targets, nil
 }

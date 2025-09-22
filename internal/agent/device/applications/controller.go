@@ -8,6 +8,7 @@ import (
 	"github.com/flightctl/flightctl/internal/agent/client"
 	"github.com/flightctl/flightctl/internal/agent/device/applications/provider"
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
+	"github.com/flightctl/flightctl/internal/agent/device/spec"
 	"github.com/flightctl/flightctl/pkg/log"
 )
 
@@ -32,33 +33,53 @@ func NewController(
 	}
 }
 
-func (c *Controller) Sync(ctx context.Context, current, desired *v1alpha1.DeviceSpec) error {
-	c.log.Debug("Syncing device applications")
+func (c *Controller) Sync(ctx context.Context, current, desired *v1alpha1.Device) error {
+	c.log.Debug("Syncing device applcations")
 	defer c.log.Debug("Finished syncing device applications")
 
+	currentSpec := current.Spec
 	currentAppProviders, err := provider.FromDeviceSpec(
 		ctx,
 		c.log,
 		c.podman,
 		c.readWriter,
-		current,
+		currentSpec,
 		provider.WithVerify(),
 	)
 	if err != nil {
 		return fmt.Errorf("current app providers: %w", err)
 	}
 
+	desiredSpec := desired.Spec
 	desiredAppProviders, err := provider.FromDeviceSpec(
 		ctx,
 		c.log,
 		c.podman,
 		c.readWriter,
-		desired,
+		desiredSpec,
 		provider.WithVerify(),
-		provider.WithEmbedded(),
 	)
 	if err != nil {
 		return fmt.Errorf("desired app providers: %w", err)
+	}
+
+	// during rollback, embedded apps should maintain their current state
+	// they should not be added to either current or desired to avoid any changes
+	isRollback := spec.IsRollback(current, desired)
+	if !isRollback {
+		// Skip verification for embedded apps - they're already on disk
+		// Validation will happen during execution if needed
+		embeddedProviders, err := provider.FromFilesystem(
+			ctx,
+			c.log,
+			c.podman,
+			c.readWriter,
+			// No WithVerify() - embedded apps may have test/invalid images
+		)
+		if err != nil {
+			return fmt.Errorf("embedded app providers: %w", err)
+		}
+		desiredAppProviders = append(desiredAppProviders, embeddedProviders...)
 	}
 
 	return syncProviders(ctx, c.log, c.manager, currentAppProviders, desiredAppProviders)

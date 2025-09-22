@@ -114,6 +114,7 @@ func TestSync(t *testing.T) {
 					//
 					mockSpecManager.EXPECT().IsUpgrading().Return(true),
 					mockSpecManager.EXPECT().SetUpgradeFailed(desired.Version()).Return(nil),
+					mockPrefetchManager.EXPECT().Cleanup(),
 					mockManagementClient.EXPECT().UpdateDeviceStatus(ctx, deviceName, gomock.Any()).Return(nil),
 					mockSpecManager.EXPECT().Rollback(ctx).Return(nil),
 					mockSpecManager.EXPECT().IsUpgrading().Return(false),
@@ -345,10 +346,14 @@ func TestRollbackDevice(t *testing.T) {
 			err = readWriter.WriteFile(filepath.Join(dataDir, "desired.json"), desiredBytes, fileio.DefaultFilePermissions)
 			require.NoError(err)
 
+			mockPrefetchManager := dependency.NewMockPrefetchManager(gomock.NewController(t))
+			mockPrefetchManager.EXPECT().Cleanup().Times(1)
+
 			agent := Agent{
-				log:           log,
-				statusManager: statusManager,
-				specManager:   specManager,
+				log:             log,
+				statusManager:   statusManager,
+				specManager:     specManager,
+				prefetchManager: mockPrefetchManager,
 			}
 
 			mockSync := &mockSync{

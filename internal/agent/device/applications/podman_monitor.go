@@ -377,6 +377,12 @@ func (m *PodmanMonitor) ExecuteActions(ctx context.Context) error {
 		action := actions[i]
 		if action.AppType == v1alpha1.AppTypeCompose {
 			if err := m.compose.Execute(ctx, &action); err != nil {
+				// For embedded apps, log the error but don't fail the sync
+				// The app will show as failed/degraded in status
+				if action.Embedded {
+					m.log.Warnf("Embedded application %s failed to execute: %v", action.Name, err)
+					continue
+				}
 				// this error should result in a failed status for the revision
 				// and not retried.
 				return err

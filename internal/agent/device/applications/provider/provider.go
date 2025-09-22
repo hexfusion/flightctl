@@ -100,10 +100,35 @@ func FromDeviceSpec(
 		}
 	}
 
-	if cfg.embedded {
-		if err := parseEmbedded(ctx, log, podman, readWriter, &providers); err != nil {
-			return nil, err
+	if cfg.verify {
+		for _, provider := range providers {
+			if err := provider.Verify(ctx); err != nil {
+				return nil, fmt.Errorf("verify: %w", err)
+			}
 		}
+	}
+
+	return providers, nil
+}
+
+// FromFilesystem discovers embedded applications from the filesystem.
+func FromFilesystem(
+	ctx context.Context,
+	log *log.PrefixLogger,
+	podman *client.Podman,
+	readWriter fileio.ReadWriter,
+	opts ...ParseOpt,
+) ([]Provider, error) {
+	var cfg parseConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	var providers []Provider
+
+	// discover embedded providers from filesystem
+	if err := parseEmbedded(ctx, log, podman, readWriter, &providers); err != nil {
+		return nil, err
 	}
 
 	if cfg.verify {
@@ -117,7 +142,7 @@ func FromDeviceSpec(
 	return providers, nil
 }
 
-func parseEmbedded(ctx context.Context, log *log.PrefixLogger, podman *client.Podman, readWriter fileio.ReadWriter, providers *[]Provider) error {
+func parseEmbedded(_ context.Context, log *log.PrefixLogger, podman *client.Podman, readWriter fileio.ReadWriter, providers *[]Provider) error {
 	// discover embedded compose applications
 	appType := v1alpha1.AppTypeCompose
 	elements, err := readWriter.ReadDir(lifecycle.EmbeddedComposeAppPath)
@@ -213,15 +238,8 @@ type Diff struct {
 type ParseOpt func(*parseConfig)
 
 type parseConfig struct {
-	embedded      bool
 	verify        bool
 	providerTypes map[v1alpha1.ApplicationProviderType]struct{}
-}
-
-func WithEmbedded() ParseOpt {
-	return func(c *parseConfig) {
-		c.embedded = true
-	}
 }
 
 func WithVerify() ParseOpt {
