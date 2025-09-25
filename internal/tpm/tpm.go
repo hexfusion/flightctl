@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"regexp"
+	"strings"
 
 	legacy "github.com/google/go-tpm/legacy/tpm2"
 	"github.com/google/go-tpm/tpm2"
@@ -90,13 +91,22 @@ type Storage interface {
 	// ClearApplicationKeys removes all application keys
 	ClearApplicationKeys() error
 	// GetPassword retrieves the stored storage hierarchy password
-	GetPassword() ([]byte, error)
+	// Returns (password, exists, error) where exists indicates if a password was found
+	GetPassword() ([]byte, bool, error)
 	// StorePassword stores the storage hierarchy password
 	StorePassword(password []byte) error
 	// ClearPassword removes the stored password
 	ClearPassword() error
 	// Close closes the storage and releases any resources
 	Close() error
+}
+
+// SecureMemoryWipe overwrites a byte slice with zeros
+// For file-based wiping, use fileio.OverwriteAndWipe
+func SecureMemoryWipe(data []byte) {
+	for i := range data {
+		data[i] = 0
+	}
 }
 
 // Certifiable defines an interface for keys that are certifiable
@@ -215,4 +225,17 @@ func convertTPMLPCRSelectionToPCRSelection(tpmlSelection *tpm2.TPMLPCRSelection)
 		Hash: hash,
 		PCRs: pcrs,
 	}
+}
+
+// IsTPMAuthErr checks if an error is a TPM authentication error
+// TPM_RC_BAD_AUTH (0x9a2) indicates authentication failure
+func IsTPMAuthErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "TPM_RC_BAD_AUTH") ||
+		strings.Contains(errStr, "0x9a2") ||
+		strings.Contains(errStr, "0x0000098a") || // Alternative representation
+		strings.Contains(errStr, "authorization failure")
 }

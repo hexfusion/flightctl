@@ -297,12 +297,13 @@ func (mr *MockStorageMockRecorder) GetKey(keyType any) *gomock.Call {
 }
 
 // GetPassword mocks base method.
-func (m *MockStorage) GetPassword() ([]byte, error) {
+func (m *MockStorage) GetPassword() ([]byte, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPassword")
 	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // GetPassword indicates an expected call of GetPassword.
