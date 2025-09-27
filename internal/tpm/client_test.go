@@ -20,6 +20,7 @@ import (
 
 	agent_config "github.com/flightctl/flightctl/internal/agent/config"
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
+	"github.com/flightctl/flightctl/pkg/executer"
 	"github.com/flightctl/flightctl/pkg/log"
 	"github.com/google/go-tpm-tools/simulator"
 	legacy "github.com/google/go-tpm/legacy/tpm2"
@@ -877,7 +878,8 @@ func TestClient_SimulatorIntegration(t *testing.T) {
 			connFactory := func() (io.ReadWriteCloser, error) {
 				return sim, nil
 			}
-			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, &agent_config.Config{
+			exec := &executer.CommonExecuter{}
+			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, exec, &agent_config.Config{
 				TPM: agent_config.TPM{
 					Enabled:         true,
 					DevicePath:      agent_config.DefaultTPMDevicePath,
@@ -902,7 +904,7 @@ func TestClient_SimulatorIntegration(t *testing.T) {
 			connFactory2 := func() (io.ReadWriteCloser, error) {
 				return sim, nil
 			}
-			c2, err := newClientWithConnection(connFactory2, log.NewPrefixLogger("test"), rw, &agent_config.Config{
+			c2, err := newClientWithConnection(connFactory2, log.NewPrefixLogger("test"), rw, exec, &agent_config.Config{
 				TPM: agent_config.TPM{
 					Enabled:         true,
 					DevicePath:      agent_config.DefaultTPMDevicePath,
@@ -925,7 +927,7 @@ func TestClient_SimulatorIntegration(t *testing.T) {
 			connFactory3 := func() (io.ReadWriteCloser, error) {
 				return sim, nil
 			}
-			c3, err := newClientWithConnection(connFactory3, log.NewPrefixLogger("test"), rw, &agent_config.Config{
+			c3, err := newClientWithConnection(connFactory3, log.NewPrefixLogger("test"), rw, exec, &agent_config.Config{
 				TPM: agent_config.TPM{
 					Enabled:         true,
 					DevicePath:      agent_config.DefaultTPMDevicePath,
@@ -1360,7 +1362,8 @@ func TestSessionGenerateChallenge(t *testing.T) {
 			connFactory := func() (io.ReadWriteCloser, error) {
 				return sim, nil
 			}
-			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, &agent_config.Config{
+			exec := &executer.CommonExecuter{}
+			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, exec, &agent_config.Config{
 				TPM: agent_config.TPM{
 					Enabled:         true,
 					DevicePath:      agent_config.DefaultTPMDevicePath,
@@ -1420,7 +1423,8 @@ func TestCreateCredential(t *testing.T) {
 			connFactory := func() (io.ReadWriteCloser, error) {
 				return sim, nil
 			}
-			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, &agent_config.Config{
+			exec := &executer.CommonExecuter{}
+			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, exec, &agent_config.Config{
 				TPM: agent_config.TPM{
 					Enabled:         true,
 					DevicePath:      agent_config.DefaultTPMDevicePath,
@@ -1510,7 +1514,8 @@ func TestClient_CreateApplicationKeys(t *testing.T) {
 				return simConn{sim: sim}, nil
 			}
 
-			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, &agent_config.Config{
+			exec := &executer.CommonExecuter{}
+			c, err := newClientWithConnection(connFactory, log.NewPrefixLogger("test"), rw, exec, &agent_config.Config{
 				TPM: agent_config.TPM{
 					Enabled:         true,
 					DevicePath:      agent_config.DefaultTPMDevicePath,

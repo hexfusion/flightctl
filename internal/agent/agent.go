@@ -69,8 +69,9 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	// create file io writer and reader
 	deviceReadWriter := fileio.NewReadWriter(fileio.WithTestRootDir(a.config.GetTestRootDir()))
+	executer := &executer.CommonExecuter{}
 
-	tpmClient, err := a.tryLoadTPM(deviceReadWriter)
+	tpmClient, err := a.tryLoadTPM(deviceReadWriter, executer)
 	if err != nil {
 		return fmt.Errorf("failed to initialize TPM client: %w", err)
 	}
@@ -79,6 +80,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	identityProvider := identity.NewProvider(
 		tpmClient,
 		deviceReadWriter,
+		executer,
 		a.config,
 		a.log,
 	)
@@ -96,8 +98,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate CSR: %w", err)
 	}
-
-	executer := &executer.CommonExecuter{}
 
 	// create enrollment client
 	enrollmentClient, err := newEnrollmentClient(a.config, a.log)
@@ -373,13 +373,13 @@ func newEnrollmentClient(cfg *agent_config.Config, log *log.PrefixLogger) (clien
 	return client.NewEnrollment(httpClient, cfg.GetEnrollmentMetricsCallback()), nil
 }
 
-func (a *Agent) tryLoadTPM(writer fileio.ReadWriter) (tpm.Client, error) {
+func (a *Agent) tryLoadTPM(writer fileio.ReadWriter, executer executer.Executer) (tpm.Client, error) {
 	if !a.config.TPM.Enabled {
 		a.log.Info("TPM device identity is disabled. Skipping TPM setup.")
 		return nil, nil
 	}
 
-	tpmClient, err := tpm.NewClient(a.log, writer, a.config)
+	tpmClient, err := tpm.NewClient(a.log, writer, executer, a.config)
 	if err != nil {
 		return nil, fmt.Errorf("creating TPM client: %w", err)
 	}

@@ -16,6 +16,7 @@ import (
 	agent_config "github.com/flightctl/flightctl/internal/agent/config"
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
 	fccrypto "github.com/flightctl/flightctl/pkg/crypto"
+	"github.com/flightctl/flightctl/pkg/executer"
 	"github.com/flightctl/flightctl/pkg/log"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpmutil"
@@ -36,12 +37,14 @@ type client struct {
 	connFactory   connFactory
 	sessionOpts   []SessionOption
 	log           *log.PrefixLogger
+	rw            fileio.ReadWriter
+	exec          executer.Executer
 	productModel  string
 	productSerial string
 }
 
 // NewClient creates a new simplified TPM client with the given configuration.
-func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config.Config) (Client, error) {
+func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, exec executer.Executer, config *agent_config.Config) (Client, error) {
 	devicePath := config.TPM.DevicePath
 
 	// discover and validate TPM device
@@ -62,12 +65,12 @@ func NewClient(log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config
 	// collect system identifiers
 	productModel, productSerial := getSystemIdentifiers(log, rw)
 
-	return newClientWithConnection(connFact, log, rw, config, productModel, productSerial)
+	return newClientWithConnection(connFact, log, rw, exec, config, productModel, productSerial)
 }
 
 // newClientWithConnection creates a new TPM client with the provided connection.
 // This helper function is useful for testing with simulators.
-func newClientWithConnection(conFact connFactory, log *log.PrefixLogger, rw fileio.ReadWriter, config *agent_config.Config, productModel, productSerial string) (*client, error) {
+func newClientWithConnection(conFact connFactory, log *log.PrefixLogger, rw fileio.ReadWriter, exec executer.Executer, config *agent_config.Config, productModel, productSerial string) (*client, error) {
 	// TODO: make dynamic
 	keyAlgo := ECDSA
 
@@ -80,6 +83,8 @@ func newClientWithConnection(conFact connFactory, log *log.PrefixLogger, rw file
 			WithKeyAlgo(keyAlgo),
 			WithStorage(storage),
 		},
+		rw:            rw,
+		exec:          exec,
 		productModel:  productModel,
 		productSerial: productSerial,
 	}
@@ -90,7 +95,7 @@ func newClientWithConnection(conFact connFactory, log *log.PrefixLogger, rw file
 	}
 
 	opts := append([]SessionOption{WithInitialization()}, c.sessionOpts...)
-	session, err := NewSession(conn, log, opts...)
+	session, err := NewSession(conn, log, rw, exec, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("creating TPM session: %w", err)
 	}
@@ -209,7 +214,7 @@ func (c *client) RemoveApplicationKey(appName string) error {
 	if err != nil {
 		return fmt.Errorf("creating conn: %w", err)
 	}
-	session, err := NewSession(conn, c.log, c.sessionOpts...)
+	session, err := NewSession(conn, c.log, c.rw, c.exec, c.sessionOpts...)
 	if err != nil {
 		return fmt.Errorf("creating session: %w", err)
 	}
@@ -229,7 +234,7 @@ func (c *client) CreateApplicationKey(name string) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("creating conn: %w", err)
 	}
 
-	session, err := NewSession(conn, c.log, c.sessionOpts...)
+	session, err := NewSession(conn, c.log, c.rw, c.exec, c.sessionOpts...)
 	if err != nil {
 		err = fmt.Errorf("creating session: %w", err)
 		if closeErr := conn.Close(); closeErr != nil {

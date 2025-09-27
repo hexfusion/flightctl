@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/pem"
@@ -521,8 +522,7 @@ func verifyCertifiedKey(certifyInfo, signature, pubBlob []byte, signerKey crypto
 		return fmt.Errorf("computing TPM Name: %w", err)
 	}
 
-	// TODO: this needs to be hardened contains is a poor compare.
-	if !bytes.Contains(certifyInfo, computedName) {
+	if !bytes.Equal(certifyInfo, computedName) {
 		return fmt.Errorf("certified object name not found in certify info")
 	}
 
@@ -621,29 +621,34 @@ func verifyTPM2CertifySignature(certifyInfo, signature []byte, signingPublicKey 
 	}
 }
 
-// stripSANExtensionOIDs removes the SAN Extension OID from the specified
-// cert. This method may re-assign the remaining extensions out of order.
+// removeSANFromUnhandledExtensions removes Subject Alternative Name extension OIDs from
+// the certificate's unhandled critical extensions list.
 //
-// This is necessary because the EKCert may contain additional data
-// bundled within the SAN extension. This ext is also sometimes marked
-// critical. This causes the Verify() to reject the cert because not all data
-// within a critical extension has been handled. We mark this as OK here by
-// stripping the SAN Extension OID out of UnhandledCriticalExtensions.
-func stripSANExtensionOIDs(cert *x509.Certificate) {
-	sanExtensionOID := []int{2, 5, 29, 17}
-
-	for i := 0; i < len(cert.UnhandledCriticalExtensions); i++ {
-		ext := cert.UnhandledCriticalExtensions[i]
-		if !ext.Equal(sanExtensionOID) {
-			continue
-		}
-		// Swap ext with the last index and remove it.
-		last := len(cert.UnhandledCriticalExtensions) - 1
-		cert.UnhandledCriticalExtensions[i] = cert.UnhandledCriticalExtensions[last]
-		cert.UnhandledCriticalExtensions[last] = nil // "Release" extension
-		cert.UnhandledCriticalExtensions = cert.UnhandledCriticalExtensions[:last]
-		i--
+// This is necessary because TPM Endorsement Key certificates may contain
+// additional data bundled within the SAN extension that is marked as critical.
+// When a critical extension contains unhandled data, x509.Verify() rejects the
+// certificate. By removing the SAN OID from UnhandledCriticalExtensions, we
+// indicate that we've acknowledged this extension and are allowing the verification
+// process to proceed without error.
+//
+// SAN OID is 2.5.29.17 per RFC 5280
+func removeSANFromUnhandledExtensions(cert *x509.Certificate) {
+	if cert == nil || len(cert.UnhandledCriticalExtensions) == 0 {
+		return
 	}
+
+	// SAN OID: 2.5.29.17
+	sanExtensionOID := asn1.ObjectIdentifier{2, 5, 29, 17}
+
+	// filter out unhandled SAN extensions but maintain order
+	filtered := make([]asn1.ObjectIdentifier, 0, len(cert.UnhandledCriticalExtensions))
+	for _, oid := range cert.UnhandledCriticalExtensions {
+		if !oid.Equal(sanExtensionOID) {
+			filtered = append(filtered, oid)
+		}
+	}
+
+	cert.UnhandledCriticalExtensions = filtered
 }
 
 // verifyEKCertificateChain verifies that the EK certificate chains to a trusted root CA
@@ -664,7 +669,7 @@ func verifyEKCertificateChain(ekCert *x509.Certificate, trustedRoots *x509.CertP
 	}
 
 	// strip SAN Extension OIDs for TPM certificates
-	stripSANExtensionOIDs(ekCert)
+	removeSANFromUnhandledExtensions(ekCert)
 
 	opts := x509.VerifyOptions{
 		Roots:     trustedRoots,
