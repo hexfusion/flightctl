@@ -193,7 +193,7 @@ func generateDeviceName(publicKey crypto.PublicKey) (string, error) {
 func GetCredentialPassword(rw fileio.ReadWriter, log *log.PrefixLogger) ([]byte, error) {
 	credPath := os.Getenv(TPMStorageSecretFileEnv)
 	if credPath == "" {
-		log.Debugf("Environment variable %s not set", TPMStorageSecretFileEnv)
+		log.Errorf("Environment variable %s not set", TPMStorageSecretFileEnv)
 		return nil, fmt.Errorf("%w: %s not set", ErrNoCredentials, TPMStorageSecretFileEnv)
 	}
 	log.Debugf("TPM_STORAGE_PASSWORD_FILE=%s", credPath)
@@ -209,15 +209,15 @@ func GetCredentialPassword(rw fileio.ReadWriter, log *log.PrefixLogger) ([]byte,
 	if err != nil {
 		exists, _ := rw.PathExists(credPath)
 		if !exists {
-			log.Debugf("Credential file does not exist: %s", credPath)
+			log.Errorf("Credential file does not exist: %s", credPath)
 			return nil, fmt.Errorf("%w: %s", ErrCredentialNotFound, credPath)
 		}
-		log.Debugf("Failed to read credential file: %v", err)
+		log.Errorf("Failed to read credential file: %v", err)
 		return nil, fmt.Errorf("failed to read credential: %w", err)
 	}
 
 	if len(password) == 0 {
-		log.Debug("Credential file is empty")
+		log.Error("Credential file is empty")
 		return nil, ErrInvalidCredential
 	}
 
