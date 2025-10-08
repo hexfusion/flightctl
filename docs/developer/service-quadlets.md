@@ -237,7 +237,7 @@ sudo podman logs flightctl-api
 The service Quadlets are also available to install via an RPM.  Installation steps for the latest release:
 
 ```bash
-sudo dnf copr enable -y @redhat-et/flightctl
+sudo dnf config-manager --add-repo https://rpm.flightctl.io/flightctl-epel.repo
 sudo dnf install -y flightctl-services
 sudo systemctl start flightctl.target
 sudo systemctl enable flightctl.target # To enable starting on reboot
@@ -265,7 +265,7 @@ The RPM upgrade process includes:
 > Database migration dry-run can be enabled/disabled by editing `/etc/flightctl/flightctl-services-install.conf` and setting `FLIGHTCTL_MIGRATION_DRY_RUN=1`. This is recommended to catch potential migration issues before they affect production.
 
 > [!NOTE] 
-> Downgrades are not supported. Be sure to back up your system before upgrading. If an upgrade fails, follow the [Flight Control Restore Operations](restore.md#flight-control-restore-operations).
+> Downgrades are not supported. Be sure to back up your system before upgrading. If an upgrade fails, follow the [Flight Control Restore Operations](../user/restore.md).
 
 ### Running the Services Container
 

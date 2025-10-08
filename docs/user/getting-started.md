@@ -47,7 +47,7 @@ helm list
 
 ### Standalone Flight Control on k8s/KIND
 
-Start your k8s/KIND cluster. For KIND cluster you can use [example config](../../deploy/kind.yaml).
+Start your k8s/KIND cluster. For KIND cluster you can use [example config](https://github.com/flightctl/flightctl/blob/main/deploy/kind.yaml).
 
 ```console
 kind create cluster --config kind.yaml
@@ -174,7 +174,7 @@ FC_API_URL=<API_URL>
 
 ```
 
-For managing ongoing Flight Control deployments including upgrades, rollbacks, and monitoring, refer to the [Helm Chart Documentation](../../deploy/helm/flightctl/README.md#upgrade-chart).
+For managing ongoing Flight Control deployments including upgrades and monitoring, refer to the [Helm Chart Documentation](https://github.com/flightctl/flightctl/blob/main/deploy/helm/flightctl/README.md).
 
 ## Installing the Flight Control CLI
 
@@ -289,7 +289,7 @@ $ cat Containerfile
 
 FROM quay.io/centos-bootc/centos-bootc:stream9
 
-RUN dnf -y copr enable @redhat-et/flightctl && \
+RUN dnf -y config-manager --add-repo https://rpm.flightctl.io/flightctl-epel.repo && \
     dnf -y install flightctl-agent; \
     dnf -y clean all; \
     systemctl enable flightctl-agent.service

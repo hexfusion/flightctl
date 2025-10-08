@@ -431,9 +431,9 @@ echo "Flightctl Observability Stack uninstalled."
     SOURCE_GIT_COMMIT="%{?SOURCE_GIT_COMMIT:%{SOURCE_GIT_COMMIT}}%{!?SOURCE_GIT_COMMIT:%(echo %{version} | grep -o '[-~]g[0-9a-f]*' | sed 's/[-~]g//' || echo unknown)}" \
     SOURCE_GIT_TAG_NO_V="%{?SOURCE_GIT_TAG_NO_V:%{SOURCE_GIT_TAG_NO_V}}%{!?SOURCE_GIT_TAG_NO_V:%{version}}" \
     %if 0%{?rhel} == 9
-        %make_build build-cli build-agent
+        %make_build build-cli build-agent build-restore
     %else
-        DISABLE_FIPS="true" %make_build build-cli build-agent
+        DISABLE_FIPS="true" %make_build build-cli build-agent build-restore
     %endif
 
     # SELinux modules build
@@ -443,6 +443,7 @@ echo "Flightctl Observability Stack uninstalled."
     mkdir -p %{buildroot}/usr/bin
     mkdir -p %{buildroot}/etc/flightctl
     cp bin/flightctl %{buildroot}/usr/bin
+    cp bin/flightctl-restore %{buildroot}/usr/bin
     mkdir -p %{buildroot}/usr/lib/systemd/system
     mkdir -p %{buildroot}/%{_sharedstatedir}/flightctl
     mkdir -p %{buildroot}/usr/lib/flightctl/custom-info.d
@@ -463,20 +464,6 @@ echo "Flightctl Observability Stack uninstalled."
     install -m644 packaging/selinux/*.bz2 %{buildroot}%{_datadir}/selinux/packages/%{selinuxtype}
 
     install -Dpm 0644 packaging/flightctl-services-install.conf %{buildroot}%{_sysconfdir}/flightctl/flightctl-services-install.conf
-
-    rm -f licenses.list
-
-    find . -type f -name LICENSE -or -name License | while read LICENSE_FILE; do
-        echo "%{_datadir}/licenses/%{NAME}/${LICENSE_FILE}" >> licenses.list
-    done
-    mkdir -vp "%{buildroot}%{_datadir}/licenses/%{NAME}"
-    cp LICENSE "%{buildroot}%{_datadir}/licenses/%{NAME}"
-
-    mkdir -vp "%{buildroot}%{_docdir}/%{NAME}"
-
-    for DOC in docs examples .markdownlint-cli2.yaml README.md; do
-        cp -vr "${DOC}" "%{buildroot}%{_docdir}/%{NAME}/${DOC}"
-    done
 
     # flightctl-services sub-package steps
     # Run the install script to move the quadlet files.
@@ -576,14 +563,15 @@ fi
 # File listings
 # No %%files section for the main package, so it won't be built
 
-%files cli -f licenses.list
+%files cli
     %{_bindir}/flightctl
+    %{_bindir}/flightctl-restore
     %license LICENSE
     %{_datadir}/bash-completion/completions/flightctl-completion.bash
     %{_datadir}/fish/vendor_completions.d/flightctl-completion.fish
     %{_datadir}/zsh/site-functions/_flightctl-completion
 
-%files agent -f licenses.list
+%files agent
     %license LICENSE
     %dir /etc/flightctl
     %{_bindir}/flightctl-agent
@@ -592,8 +580,6 @@ fi
     /usr/lib/systemd/system/flightctl-agent.service
     %{_sharedstatedir}/flightctl
     /usr/lib/greenboot/check/required.d/20_check_flightctl_agent.sh
-    %{_docdir}/%{NAME}/*
-    %{_docdir}/%{NAME}/.markdownlint-cli2.yaml
     /usr/share/sosreport/flightctl.py
 
 %post agent
@@ -616,8 +602,10 @@ rm -rf /usr/share/sosreport
     %dir %{_sysconfdir}/flightctl/flightctl-ui
     %dir %{_sysconfdir}/flightctl/flightctl-cli-artifacts
     %dir %{_sysconfdir}/flightctl/flightctl-alertmanager-proxy
+    %dir %{_sysconfdir}/flightctl/ssh
     %config(noreplace) %{_sysconfdir}/flightctl/service-config.yaml
     %config(noreplace) %{_sysconfdir}/flightctl/flightctl-services-install.conf
+    %config(noreplace) %{_sysconfdir}/flightctl/ssh/known_hosts
 
     # Files mounted to data dir
     %dir %attr(0755,root,root) %{_datadir}/flightctl
