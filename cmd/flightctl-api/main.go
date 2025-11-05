@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"os/signal"
-	"syscall"
+	"sync"
 	"time"
 
 	apiserver "github.com/flightctl/flightctl/internal/api_server"
@@ -26,21 +24,33 @@ import (
 	"github.com/flightctl/flightctl/internal/util"
 	"github.com/flightctl/flightctl/pkg/log"
 	"github.com/flightctl/flightctl/pkg/queues"
+	"github.com/flightctl/flightctl/pkg/shutdown"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
-//nolint:gocyclo
 func main() {
-	ctx := context.Background()
-
 	log := log.InitLogs()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	shutdown.HandleSignals(log, cancel, shutdown.DefaultGracefulShutdownTimeout)
+	if err := runCmd(ctx, log); err != nil {
+		log.Fatalf("API service error: %v", err)
+	}
+}
+
+//nolint:gocyclo
+func runCmd(ctx context.Context, log *logrus.Logger) error {
 	log.Println("Starting API service")
 	defer log.Println("API service stopped")
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	cfg, err := config.LoadOrGenerate(config.ConfigFile())
 	if err != nil {
-		log.Fatalf("reading configuration: %v", err)
+		return fmt.Errorf("reading configuration: %w", err)
 	}
 	log.Printf("Using config: %s", cfg)
 
@@ -52,7 +62,7 @@ func main() {
 
 	ca, _, err := crypto.EnsureCA(cfg.CA)
 	if err != nil {
-		log.Fatalf("ensuring CA cert: %v", err)
+		return fmt.Errorf("ensuring CA cert: %w", err)
 	}
 
 	var serverCerts *crypto.TLSCertificateConfig
@@ -60,12 +70,12 @@ func main() {
 	// check for user-provided certificate files
 	if cfg.Service.SrvCertFile != "" || cfg.Service.SrvKeyFile != "" {
 		if canReadCertAndKey, err := crypto.CanReadCertAndKey(cfg.Service.SrvCertFile, cfg.Service.SrvKeyFile); !canReadCertAndKey {
-			log.Fatalf("cannot read provided server certificate or key: %v", err)
+			return fmt.Errorf("cannot read provided server certificate or key: %w", err)
 		}
 
 		serverCerts, err = crypto.GetTLSCertificateConfig(cfg.Service.SrvCertFile, cfg.Service.SrvKeyFile)
 		if err != nil {
-			log.Fatalf("failed to load provided certificate: %v", err)
+			return fmt.Errorf("failed to load provided certificate: %w", err)
 		}
 	} else {
 		srvCertFile := crypto.CertStorePath(cfg.Service.ServerCertName+".crt", cfg.Service.CertStore)
@@ -75,7 +85,7 @@ func main() {
 		if canReadCertAndKey, _ := crypto.CanReadCertAndKey(srvCertFile, srvKeyFile); canReadCertAndKey {
 			serverCerts, err = crypto.GetTLSCertificateConfig(srvCertFile, srvKeyFile)
 			if err != nil {
-				log.Fatalf("failed to load existing self-signed certificate: %v", err)
+				return fmt.Errorf("failed to load existing self-signed certificate: %w", err)
 			}
 		} else {
 			// default to localhost if no alternative names are set
@@ -85,7 +95,7 @@ func main() {
 
 			serverCerts, err = ca.MakeAndWriteServerCertificate(ctx, srvCertFile, srvKeyFile, cfg.Service.AltNames, cfg.CA.ServerCertValidityDays)
 			if err != nil {
-				log.Fatalf("failed to create self-signed certificate: %v", err)
+				return fmt.Errorf("failed to create self-signed certificate: %w", err)
 			}
 		}
 	}
@@ -106,32 +116,32 @@ func main() {
 	clientKeyFile := crypto.CertStorePath(cfg.CA.ClientBootstrapCertName+".key", cfg.Service.CertStore)
 	_, _, err = ca.EnsureClientCertificate(ctx, clientCertFile, clientKeyFile, cfg.CA.ClientBootstrapCommonName, cfg.CA.ClientBootstrapValidityDays)
 	if err != nil {
-		log.Fatalf("ensuring bootstrap client cert: %v", err)
+		return fmt.Errorf("ensuring bootstrap client cert: %w", err)
 	}
 
 	// also write out a client config file
 
 	caPemBytes, err := ca.GetCABundle()
 	if err != nil {
-		log.Fatalf("loading CA certificate bundle: %v", err)
+		return fmt.Errorf("loading CA certificate bundle: %w", err)
 	}
 
 	err = client.WriteConfig(config.ClientConfigFile(), cfg.Service.BaseUrl, "", caPemBytes, nil)
 	if err != nil {
-		log.Fatalf("writing client config: %v", err)
+		return fmt.Errorf("writing client config: %w", err)
 	}
 
 	tracerShutdown := tracing.InitTracer(log, cfg, "flightctl-api")
 	defer func() {
 		if err := tracerShutdown(ctx); err != nil {
-			log.Fatalf("failed to shut down tracer: %v", err)
+			log.Errorf("failed to shut down tracer: %v", err)
 		}
 	}()
 
 	log.Println("Initializing data store")
 	db, err := store.InitDB(cfg, log)
 	if err != nil {
-		log.Fatalf("initializing data store: %v", err)
+		return fmt.Errorf("initializing data store: %w", err)
 	}
 
 	store := store.NewStore(db, log.WithField("pkg", "store"))
@@ -139,32 +149,30 @@ func main() {
 
 	tlsConfig, agentTlsConfig, err := crypto.TLSConfigForServer(ca.GetCABundleX509(), serverCerts)
 	if err != nil {
-		log.Fatalf("failed creating TLS config: %v", err)
+		return fmt.Errorf("failed creating TLS config: %w", err)
 	}
-
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGQUIT)
 
 	processID := fmt.Sprintf("api-%s-%s", util.GetHostname(), uuid.New().String())
 	provider, err := queues.NewRedisProvider(ctx, log, processID, cfg.KV.Hostname, cfg.KV.Port, cfg.KV.Password, queues.DefaultRetryConfig())
 	if err != nil {
-		log.Fatalf("failed connecting to Redis queue: %v", err)
+		return fmt.Errorf("failed connecting to Redis queue: %w", err)
 	}
 
 	kvStore, err := kvstore.NewKVStore(ctx, log, cfg.KV.Hostname, cfg.KV.Port, cfg.KV.Password)
 	if err != nil {
-		log.Fatalf("creating kvstore: %v", err)
+		return fmt.Errorf("creating kvstore: %w", err)
 	}
 	if err = rendered.Bus.Initialize(ctx, kvStore, provider, time.Duration(cfg.Service.RenderedWaitTimeout), log); err != nil {
-		log.Fatalf("creating rendered version manager: %v", err)
+		return fmt.Errorf("creating rendered version manager: %w", err)
 	}
 	if err = rendered.Bus.Instance().Start(ctx); err != nil {
-		log.Fatalf("starting rendered version manager: %v", err)
+		return fmt.Errorf("starting rendered version manager: %w", err)
 	}
 
 	// create the agent service listener as tcp (combined HTTP+gRPC)
 	agentListener, err := net.Listen("tcp", cfg.Service.AgentEndpointAddress)
 	if err != nil {
-		log.Fatalf("creating listener: %s", err)
+		return fmt.Errorf("creating listener: %w", err)
 	}
 
 	orgCache := cache.NewOrganizationTTL(cache.DefaultTTL)
@@ -187,32 +195,39 @@ func main() {
 
 	orgResolver, err := resolvers.BuildResolver(buildResolverOpts)
 	if err != nil {
-		log.Fatalf("failed to build organization resolver: %v", err)
+		return fmt.Errorf("failed to build organization resolver: %w", err)
 	}
 
 	agentServer, err := agentserver.New(ctx, log, cfg, store, ca, agentListener, provider, agentTlsConfig, orgResolver)
 	if err != nil {
-		log.Fatalf("initializing agent server: %v", err)
+		return fmt.Errorf("initializing agent server: %w", err)
 	}
 
+	listener, err := middleware.NewTLSListener(cfg.Service.Address, tlsConfig)
+	if err != nil {
+		return fmt.Errorf("creating TLS listener: %w", err)
+	}
+	defer listener.Close()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
-		listener, err := middleware.NewTLSListener(cfg.Service.Address, tlsConfig)
-		if err != nil {
-			log.Fatalf("creating listener: %s", err)
-		}
-		// we pass the grpc server for now, to let the console sessions to establish a connection in grpc
+		defer wg.Done()
 		server := apiserver.New(log, cfg, store, ca, listener, provider, agentServer.GetGRPCServer(), orgResolver)
 		if err := server.Run(ctx); err != nil {
-			log.Fatalf("Error running server: %s", err)
+			log.Errorf("Failed to run API server: %v", err)
+			cancel()
 		}
-		cancel()
 	}()
 
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		if err := agentServer.Run(ctx); err != nil {
-			log.Fatalf("Error running server: %s", err)
+			log.Errorf("Failed to run agent server: %v", err)
+			cancel()
 		}
-		cancel()
 	}()
 
 	if cfg.Metrics != nil && cfg.Metrics.Enabled {
@@ -250,14 +265,18 @@ func main() {
 			}
 		}
 
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			metricsServer := metrics.NewMetricsServer(log, cfg, collectors...)
 			if err := metricsServer.Run(ctx); err != nil {
-				log.Fatalf("Error running server: %s", err)
+				log.Errorf("Failed to run metrics server: %v", err)
+				cancel()
 			}
-			cancel()
 		}()
 	}
 
-	<-ctx.Done()
+	wg.Wait()
+
+	return nil
 }
