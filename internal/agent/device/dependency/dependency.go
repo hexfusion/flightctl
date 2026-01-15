@@ -233,7 +233,7 @@ func (m *prefetchManager) BeforeUpdate(ctx context.Context, current, desired *v1
 	for i, collector := range collectors {
 		result, err := collector.CollectOCITargets(ctx, current, desired)
 		if err != nil {
-			return fmt.Errorf("prefetch collector %d failed: %w", i, err)
+			return fmt.Errorf("%w %d failed: %w", errors.ErrPrefetchCollector, i, err)
 		}
 		allTargets = append(allTargets, result.Targets...)
 		if result.Requeue {
@@ -266,7 +266,7 @@ func (m *prefetchManager) BeforeUpdate(ctx context.Context, current, desired *v1
 		}
 		m.log.Debugf("Scheduling %d new targets for prefetch", len(newTargets))
 		if err := m.Schedule(ctx, newTargets); err != nil {
-			return fmt.Errorf("scheduling prefetch targets: %w", err)
+			return fmt.Errorf("%w: %w", errors.ErrSchedulingPrefetchTargets, err)
 		}
 	}
 

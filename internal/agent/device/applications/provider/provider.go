@@ -88,7 +88,7 @@ func CollectBaseOCITargets(
 		case v1beta1.ImageApplicationProviderType:
 			imageSpec, err := providerSpec.AsImageApplicationProviderSpec()
 			if err != nil {
-				return nil, fmt.Errorf("getting image provider spec: %w", err)
+				return nil, fmt.Errorf("%w: image: %w", errors.ErrGettingProviderSpec, err)
 			}
 
 			ociType := dependency.OCITypeAuto
@@ -115,7 +115,7 @@ func CollectBaseOCITargets(
 		case v1beta1.InlineApplicationProviderType:
 			inlineSpec, err := providerSpec.AsInlineApplicationProviderSpec()
 			if err != nil {
-				return nil, fmt.Errorf("getting inline provider spec: %w", err)
+				return nil, fmt.Errorf("%w: inline: %w", errors.ErrGettingProviderSpec, err)
 			}
 
 			// Extract images from inline content based on app type
@@ -124,7 +124,7 @@ func CollectBaseOCITargets(
 				// Inline compose specs are already validated by the API
 				spec, err := client.ParseComposeFromSpec(inlineSpec.Inline)
 				if err != nil {
-					return nil, fmt.Errorf("parsing compose spec: %w", err)
+					return nil, fmt.Errorf("%w: %w", errors.ErrParsingComposeSpec, err)
 				}
 				for _, svc := range spec.Services {
 					if svc.Image != "" {
@@ -139,7 +139,7 @@ func CollectBaseOCITargets(
 			case v1beta1.AppTypeQuadlet:
 				spec, err := client.ParseQuadletReferencesFromSpec(inlineSpec.Inline)
 				if err != nil {
-					return nil, fmt.Errorf("parsing quadlet spec: %w", err)
+					return nil, fmt.Errorf("%w: %w", errors.ErrParsingQuadletSpec, err)
 				}
 				for _, quad := range spec {
 					targets = append(targets, extractQuadletTargets(quad, configProvider)...)
@@ -166,7 +166,7 @@ func CollectBaseOCITargets(
 	}
 	embeddedTargets, err := collectEmbeddedOCITargets(ctx, readWriter, configProvider)
 	if err != nil {
-		return nil, fmt.Errorf("collecting embedded OCI targets: %w", err)
+		return nil, fmt.Errorf("%w: OCI targets: %w", errors.ErrCollectingEmbedded, err)
 	}
 	targets = append(targets, embeddedTargets...)
 
@@ -184,14 +184,14 @@ func collectEmbeddedOCITargets(ctx context.Context, readWriter fileio.ReadWriter
 	// discover embedded compose applications
 	composeTargets, err := collectEmbeddedComposeTargets(ctx, readWriter, configProvider)
 	if err != nil {
-		return nil, fmt.Errorf("collecting embedded compose targets: %w", err)
+		return nil, fmt.Errorf("%w: compose targets: %w", errors.ErrCollectingEmbedded, err)
 	}
 	targets = append(targets, composeTargets...)
 
 	// discover embedded quadlet applications
 	quadletTargets, err := collectEmbeddedQuadletTargets(ctx, readWriter, configProvider)
 	if err != nil {
-		return nil, fmt.Errorf("collecting embedded quadlet targets: %w", err)
+		return nil, fmt.Errorf("%w: quadlet targets: %w", errors.ErrCollectingEmbedded, err)
 	}
 	targets = append(targets, quadletTargets...)
 
@@ -329,7 +329,7 @@ func ExtractNestedTargetsFromImage(
 	// Resolve canonical app name
 	appName, err := ResolveImageAppName(appSpec)
 	if err != nil {
-		return nil, fmt.Errorf("resolving app name: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrResolvingAppName, err)
 	}
 
 	// determine app type
@@ -340,7 +340,7 @@ func ExtractNestedTargetsFromImage(
 	}
 
 	if err := ensureAppTypeFromImage(ctx, podman, appType, imageSpec.Image); err != nil {
-		return nil, fmt.Errorf("ensuring app type: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrEnsuringAppType, err)
 	}
 
 	if appType != v1beta1.AppTypeCompose && appType != v1beta1.AppTypeQuadlet {
@@ -395,11 +395,11 @@ func FromDeviceSpec(
 			// determine app type for image provider
 			imageSpec, err := providerSpec.AsImageApplicationProviderSpec()
 			if err != nil {
-				return nil, fmt.Errorf("getting image provider spec: %w", err)
+				return nil, fmt.Errorf("%w: image: %w", errors.ErrGettingProviderSpec, err)
 			}
 
 			if err := ensureAppTypeFromImage(ctx, podman, providerSpec.AppType, imageSpec.Image); err != nil {
-				return nil, fmt.Errorf("ensuring app type: %w", err)
+				return nil, fmt.Errorf("%w: %w", errors.ErrEnsuringAppType, err)
 			}
 
 			imgProvider, err := newImage(log, podman, &providerSpec, readWriter, providerSpec.AppType)
@@ -410,7 +410,7 @@ func FromDeviceSpec(
 			if cfg.appDataCache != nil {
 				appName, err := ResolveImageAppName(&providerSpec)
 				if err != nil {
-					return nil, fmt.Errorf("resolving app name for cache lookup: %w", err)
+					return nil, fmt.Errorf("%w: for cache lookup: %w", errors.ErrResolvingAppName, err)
 				}
 				if cachedData, found := cfg.appDataCache[appName]; found {
 					imgProvider.AppData = cachedData
@@ -706,7 +706,7 @@ func extractAppDataFromOCITarget(
 ) (*AppData, error) {
 	tmpAppPath, err := readWriter.MkdirTemp("app_temp")
 	if err != nil {
-		return nil, fmt.Errorf("creating tmp dir for app %s (%s): %w", appName, imageRef, err)
+		return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrCreatingTmpDir, appName, imageRef, err)
 	}
 
 	cleanupFn := func() error {
@@ -716,24 +716,24 @@ func extractAppDataFromOCITarget(
 	ociType, err := detectOCIType(ctx, podman, imageRef)
 	if err != nil {
 		if rmErr := cleanupFn(); rmErr != nil {
-			return nil, fmt.Errorf("detecting OCI type for app %s (%s): %w (cleanup failed: %v)", appName, imageRef, err, rmErr)
+			return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrDetectingOCIType, appName, imageRef, err, rmErr)
 		}
-		return nil, fmt.Errorf("detecting OCI type for app %s (%s): %w", appName, imageRef, err)
+		return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrDetectingOCIType, appName, imageRef, err)
 	}
 
 	if ociType == dependency.OCITypePodmanArtifact {
 		if err := extractAndProcessArtifact(ctx, podman, log.NewPrefixLogger(""), imageRef, tmpAppPath, readWriter); err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("extracting artifact contents for app %s (%s): %w (cleanup failed: %v)", appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w: contents for app %s (%s): %w (cleanup failed: %v)", errors.ErrExtractingArtifact, appName, imageRef, err, rmErr)
 			}
-			return nil, fmt.Errorf("extracting artifact contents for app %s (%s): %w", appName, imageRef, err)
+			return nil, fmt.Errorf("%w: contents for app %s (%s): %w", errors.ErrExtractingArtifact, appName, imageRef, err)
 		}
 	} else {
 		if err := podman.CopyContainerData(ctx, imageRef, tmpAppPath); err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("copying image contents for app %s (%s): %w (cleanup failed: %v)", appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w: contents for app %s (%s): %w (cleanup failed: %v)", errors.ErrCopyingImage, appName, imageRef, err, rmErr)
 			}
-			return nil, fmt.Errorf("copying image contents for app %s (%s): %w", appName, imageRef, err)
+			return nil, fmt.Errorf("%w: contents for app %s (%s): %w", errors.ErrCopyingImage, appName, imageRef, err)
 		}
 	}
 
@@ -745,17 +745,17 @@ func extractAppDataFromOCITarget(
 		spec, err := client.ParseComposeSpecFromDir(readWriter, tmpAppPath)
 		if err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("parsing compose spec for app %s (%s): %w (cleanup failed: %v)", appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrParsingComposeSpec, appName, imageRef, err, rmErr)
 			}
-			return nil, fmt.Errorf("parsing compose spec for app %s (%s): %w", appName, imageRef, err)
+			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrParsingComposeSpec, appName, imageRef, err)
 		}
 
 		// validate the compose spec
 		if errs := validation.ValidateComposeSpec(spec); len(errs) > 0 {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("validating compose spec for app %s (%s): %w (cleanup failed: %v)", appName, imageRef, errors.Join(errs...), rmErr)
+				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrValidatingComposeSpec, appName, imageRef, errors.Join(errs...), rmErr)
 			}
-			return nil, fmt.Errorf("validating compose spec for app %s (%s): %w", appName, imageRef, errors.Join(errs...))
+			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrValidatingComposeSpec, appName, imageRef, errors.Join(errs...))
 		}
 
 		// extract images
@@ -775,9 +775,9 @@ func extractAppDataFromOCITarget(
 		spec, err := client.ParseQuadletReferencesFromDir(readWriter, tmpAppPath)
 		if err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("parsing quadlet spec for app %s (%s): %w (cleanup failed: %v)", appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrParsingQuadletSpec, appName, imageRef, err, rmErr)
 			}
-			return nil, fmt.Errorf("parsing quadlet spec for app %s (%s): %w", appName, imageRef, err)
+			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrParsingQuadletSpec, appName, imageRef, err)
 		}
 
 		// validate all quadlets before extracting targets
@@ -789,9 +789,9 @@ func extractAppDataFromOCITarget(
 		}
 		if len(validationErrs) > 0 {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("validating quadlet spec for app %s (%s): %w (cleanup failed: %v)", appName, imageRef, errors.Join(validationErrs...), rmErr)
+				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrValidatingQuadletSpec, appName, imageRef, errors.Join(validationErrs...), rmErr)
 			}
-			return nil, fmt.Errorf("validating quadlet spec for app %s (%s): %w", appName, imageRef, errors.Join(validationErrs...))
+			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrValidatingQuadletSpec, appName, imageRef, errors.Join(validationErrs...))
 		}
 
 		// extract images
@@ -819,11 +819,11 @@ func ensureCompose(readWriter fileio.ReadWriter, appPath string) error {
 	// (double check the yaml spacing)
 	spec, err := client.ParseComposeSpecFromDir(readWriter, appPath)
 	if err != nil {
-		return fmt.Errorf("parsing compose spec: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrParsingComposeSpec, err)
 	}
 
 	if errs := validation.ValidateComposeSpec(spec); len(errs) > 0 {
-		return fmt.Errorf("validating compose spec: %w", errors.Join(errs...))
+		return fmt.Errorf("%w: %w", errors.ErrValidatingComposeSpec, errors.Join(errs...))
 	}
 
 	return nil
@@ -881,7 +881,7 @@ func ensureQuadlet(readWriter fileio.ReadWriter, appPath string) error {
 	// Parse and validate quadlet specifications
 	spec, err := client.ParseQuadletReferencesFromDir(readWriter, appPath)
 	if err != nil {
-		return fmt.Errorf("parsing quadlet spec: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrParsingQuadletSpec, err)
 	}
 
 	var errs []error
@@ -895,7 +895,7 @@ func ensureQuadlet(readWriter fileio.ReadWriter, appPath string) error {
 	errs = append(errs, validation.ValidateQuadletCrossReferences(spec)...)
 
 	if len(errs) > 0 {
-		return fmt.Errorf("validating quadlets spec: %w", errors.Join(errs...))
+		return fmt.Errorf("%w: %w", errors.ErrValidatingQuadletSpec, errors.Join(errs...))
 	}
 	return nil
 }

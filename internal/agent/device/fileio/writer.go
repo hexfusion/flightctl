@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/flightctl/flightctl/api/core/v1beta1"
+	"github.com/flightctl/flightctl/internal/agent/device/errors"
 	"github.com/google/renameio"
 	"github.com/samber/lo"
 )
@@ -592,15 +593,15 @@ func groupToGID(group string) (int, error) {
 func getUserIdentity() (int, int, error) {
 	currentUser, err := user.Current()
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed retrieving current user: %w", err)
+		return 0, 0, fmt.Errorf("%w: %w", errors.ErrFailedRetrievingCurrentUser, err)
 	}
 	gid, err := strconv.Atoi(currentUser.Gid)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed converting GID to int: %w", err)
+		return 0, 0, fmt.Errorf("%w to int: %w", errors.ErrFailedConvertingGID, err)
 	}
 	uid, err := strconv.Atoi(currentUser.Uid)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed converting UID to int: %w", err)
+		return 0, 0, fmt.Errorf("%w to int: %w", errors.ErrFailedConvertingUID, err)
 	}
 	return uid, gid, nil
 }
@@ -608,7 +609,7 @@ func getUserIdentity() (int, int, error) {
 func lookupUID(username string) (int, error) {
 	osUser, err := user.Lookup(username)
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve UserID for username: %s", username)
+		return 0, fmt.Errorf("%w for username %s: %w", errors.ErrFailedToRetrieveUserID, username, err)
 	}
 	uid, _ := strconv.Atoi(osUser.Uid)
 	return uid, nil
@@ -617,7 +618,7 @@ func lookupUID(username string) (int, error) {
 func lookupGID(group string) (int, error) {
 	osGroup, err := user.LookupGroup(group)
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve GroupID for group: %v", group)
+		return 0, fmt.Errorf("%w for group %v: %w", errors.ErrFailedToRetrieveGroupID, group, err)
 	}
 	gid, _ := strconv.Atoi(osGroup.Gid)
 	return gid, nil
@@ -648,7 +649,7 @@ func DecodeContent(content string, encoding *v1beta1.EncodingType) ([]byte,
 func WriteTmpFile(rw ReadWriter, prefix, filename string, content []byte, perm os.FileMode) (path string, cleanup func(), err error) {
 	tmpDir, err := rw.MkdirTemp(prefix)
 	if err != nil {
-		return "", nil, fmt.Errorf("creating tmp dir: %w", err)
+		return "", nil, fmt.Errorf("%w: %w", errors.ErrCreatingTmpDir, err)
 	}
 
 	tmpPath := filepath.Join(tmpDir, filename)

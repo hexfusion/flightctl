@@ -69,7 +69,7 @@ func newImageHandler(appType v1beta1.AppType, name string, rw fileio.ReadWriter,
 func newImage(log *log.PrefixLogger, podman *client.Podman, spec *v1beta1.ApplicationProviderSpec, readWriter fileio.ReadWriter, appType v1beta1.AppType) (*imageProvider, error) {
 	provider, err := spec.AsImageApplicationProviderSpec()
 	if err != nil {
-		return nil, fmt.Errorf("getting provider spec:%w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrGettingProviderSpec, err)
 	}
 
 	// set the app name to the image name if not provided
@@ -154,12 +154,12 @@ func (p *imageProvider) Verify(ctx context.Context) error {
 		var err error
 		tmpAppPath, err = p.readWriter.MkdirTemp("app_temp")
 		if err != nil {
-			return fmt.Errorf("creating tmp dir: %w", err)
+			return fmt.Errorf("%w: %w", errors.ErrCreatingTmpDir, err)
 		}
 		shouldCleanup = true
 
 		if err := p.extractOCIContents(ctx, ociType, tmpAppPath); err != nil {
-			return fmt.Errorf("extracting OCI: %s contents: %w", ociType, err)
+			return fmt.Errorf("%w: %s contents: %w", errors.ErrExtractingOCI, ociType, err)
 		}
 	}
 
@@ -173,7 +173,7 @@ func (p *imageProvider) Verify(ctx context.Context) error {
 	}()
 
 	if err := p.handler.Verify(ctx, tmpAppPath); err != nil {
-		return fmt.Errorf("%w: verifying image: %w", errors.ErrNoRetry, err)
+		return fmt.Errorf("%w: %w: %w", errors.ErrNoRetry, errors.ErrVerifyingImage, err)
 	}
 	return nil
 }
@@ -194,22 +194,22 @@ func (p *imageProvider) Install(ctx context.Context) error {
 
 	ociType, err := detectOCIType(ctx, p.podman, p.spec.ImageProvider.Image)
 	if err != nil {
-		return fmt.Errorf("detecting OCI type: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrDetectingOCIType, err)
 	}
 
 	if err := p.extractOCIContents(ctx, ociType, p.spec.Path); err != nil {
-		return fmt.Errorf("extracting OCI: %s contents: %w", ociType, err)
+		return fmt.Errorf("%w: %s contents: %w", errors.ErrExtractingOCI, ociType, err)
 	}
 
 	if err := writeENVFile(p.spec.Path, p.readWriter, p.spec.EnvVars); err != nil {
-		return fmt.Errorf("writing env file: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrWritingEnvFile, err)
 	}
 
 	// image providers may have volumes that are nested within the contents of the application
 	// that can't be added until install time
 	volumes, err := p.handler.Volumes()
 	if err != nil {
-		return fmt.Errorf("getting volumes: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrGettingVolumes, err)
 	}
 	p.spec.Volume.AddVolumes(volumes)
 
@@ -227,7 +227,7 @@ func (p *imageProvider) Remove(ctx context.Context) error {
 	}
 
 	if err := p.readWriter.RemoveAll(p.spec.Path); err != nil {
-		return fmt.Errorf("removing application: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrRemovingApplication, err)
 	}
 	return p.handler.Remove(ctx)
 }
@@ -251,7 +251,7 @@ func ensureAppTypeFromImage(ctx context.Context, podman *client.Podman, declared
 		return err
 	}
 	if discoveredType != declaredType {
-		return fmt.Errorf("%w: app type mismatch: declared %q discovered %q", errors.ErrAppLabel, declaredType, discoveredType)
+		return fmt.Errorf("%w: %w: declared %q discovered %q", errors.ErrAppLabel, errors.ErrAppTypeMismatch, declaredType, discoveredType)
 	}
 	return nil
 }
@@ -323,7 +323,7 @@ func extractAndProcessArtifact(ctx context.Context, podman *client.Podman, log *
 
 	// Extract artifact to temp directory
 	if _, err := podman.ExtractArtifact(ctx, artifact, tmpDir); err != nil {
-		return fmt.Errorf("extracting artifact: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrExtractingArtifact, err)
 	}
 
 	if err := writer.MkdirAll(destination, fileio.DefaultDirectoryPermissions); err != nil {

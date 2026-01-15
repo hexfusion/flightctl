@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	api "github.com/flightctl/flightctl/api/core/v1beta1"
+	deviceerrors "github.com/flightctl/flightctl/internal/agent/device/errors"
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
 	"github.com/flightctl/flightctl/pkg/executer"
 	"github.com/flightctl/flightctl/pkg/log"
@@ -115,16 +116,16 @@ func (m *manager) loadAndMergeActions(hookType api.DeviceLifecycleHookType) ([]a
 func (m *manager) loadActions(actionsMap map[string][]api.HookAction, actionFilesGlob string) error {
 	actionFiles, err := filepath.Glob(m.reader.PathFor(actionFilesGlob))
 	if err != nil {
-		m.log.Errorf("looking for hook actions matching %q: %v", actionFilesGlob, err)
+		return fmt.Errorf("%w: actions matching %q: %w", deviceerrors.ErrLookingForHook, actionFilesGlob, err)
 	}
 	for _, f := range actionFiles {
 		contents, err := os.ReadFile(f)
 		if err != nil {
-			return fmt.Errorf("reading hook actions from %q: %w", f, err)
+			return fmt.Errorf("%w: %q: %w", deviceerrors.ErrReadingHookActionsFrom, f, err)
 		}
 		actions := []api.HookAction{}
 		if err := yaml.UnmarshalStrict(contents, &actions); err != nil {
-			return fmt.Errorf("parsing hook actions from %q: %w", f, err)
+			return fmt.Errorf("%w: %q: %w", deviceerrors.ErrParsingHookActionsFrom, f, err)
 		}
 		allErrs := []error{}
 		for i, action := range actions {
@@ -167,7 +168,7 @@ func (m *manager) executeActions(ctx context.Context, actions []api.HookAction, 
 			return err
 		}
 		if err := executeAction(ctx, m.exec, m.log, action, actionCtx, actionTimeout); err != nil {
-			return fmt.Errorf("failed to execute %s hook action #%d: %w", actionCtx.hook, i+1, err)
+			return fmt.Errorf("%w: %s hook action #%d: %w", deviceerrors.ErrFailedToExecute, actionCtx.hook, i+1, err)
 		}
 	}
 	return nil

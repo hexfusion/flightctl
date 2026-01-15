@@ -45,7 +45,7 @@ type quadletHandler struct {
 
 func (b *quadletHandler) Verify(ctx context.Context, path string) error {
 	if err := ensureDependenciesFromAppType([]string{"podman"}); err != nil {
-		return fmt.Errorf("ensuring dependencies: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrEnsuringDependencies, err)
 	}
 
 	version, err := b.podman.Version(ctx)
@@ -104,7 +104,7 @@ type composeHandler struct {
 
 func (b *composeHandler) Verify(ctx context.Context, path string) error {
 	if err := ensureDependenciesFromAppType([]string{"docker-compose", "podman-compose"}); err != nil {
-		return fmt.Errorf("ensuring dependencies: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrEnsuringDependencies, err)
 	}
 	if err := ensureCompose(b.rw, path); err != nil {
 		return fmt.Errorf("ensuring compose: %w", err)
@@ -152,7 +152,7 @@ type containerHandler struct {
 func (b *containerHandler) Verify(ctx context.Context, path string) error {
 	errs := v1beta1.ValidateContainerImageApplicationSpec(b.name, b.spec)
 	if err := ensureDependenciesFromAppType([]string{"podman"}); err != nil {
-		errs = append(errs, fmt.Errorf("ensuring dependencies: %w", err))
+		errs = append(errs, fmt.Errorf("%w: %w", errors.ErrEnsuringDependencies, err))
 	}
 
 	version, err := b.podman.Version(ctx)

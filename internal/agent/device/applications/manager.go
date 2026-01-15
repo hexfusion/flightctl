@@ -66,7 +66,7 @@ func (m *manager) Ensure(ctx context.Context, provider provider.Provider) error 
 			return nil
 		}
 		if err := provider.Install(ctx); err != nil {
-			return fmt.Errorf("installing application: %w", err)
+			return fmt.Errorf("%w: %w", errors.ErrInstallingApplication, err)
 		}
 		return m.podmanMonitor.Ensure(NewApplication(provider))
 	default:
@@ -79,7 +79,7 @@ func (m *manager) Remove(ctx context.Context, provider provider.Provider) error 
 	switch appType {
 	case v1beta1.AppTypeCompose, v1beta1.AppTypeQuadlet, v1beta1.AppTypeContainer:
 		if err := provider.Remove(ctx); err != nil {
-			return fmt.Errorf("removing application: %w", err)
+			return fmt.Errorf("%w: %w", errors.ErrRemovingApplication, err)
 		}
 		return m.podmanMonitor.Remove(NewApplication(provider))
 	default:
@@ -92,10 +92,10 @@ func (m *manager) Update(ctx context.Context, provider provider.Provider) error 
 	switch appType {
 	case v1beta1.AppTypeCompose, v1beta1.AppTypeQuadlet, v1beta1.AppTypeContainer:
 		if err := provider.Remove(ctx); err != nil {
-			return fmt.Errorf("removing application: %w", err)
+			return fmt.Errorf("%w: %w", errors.ErrRemovingApplication, err)
 		}
 		if err := provider.Install(ctx); err != nil {
-			return fmt.Errorf("installing application: %w", err)
+			return fmt.Errorf("%w: %w", errors.ErrInstallingApplication, err)
 		}
 		return m.podmanMonitor.Update(NewApplication(provider))
 	default:
@@ -147,7 +147,7 @@ func (m *manager) resolvePullSecret(desired *v1beta1.DeviceSpec) (*client.PullCo
 	}
 	secret, found, err := client.ResolvePullConfig(m.log, rootRW, desired, pullAuthPath)
 	if err != nil {
-		return nil, fmt.Errorf("resolving pull secret: %w", err)
+		return nil, err
 	}
 	if !found {
 		return nil, nil
@@ -303,14 +303,14 @@ func (m *manager) collectNestedTargets(
 			exists = true
 			digest, err = podman.ImageDigest(ctx, imageRef)
 			if err != nil {
-				return nil, false, nil, fmt.Errorf("getting image digest for %s: %w", imageRef, err)
+				return nil, false, nil, fmt.Errorf("%w: for %s: %w", errors.ErrGettingImageDigest, imageRef, err)
 			}
 		} else if podman.ArtifactExists(ctx, imageRef) {
 			ociType = dependency.OCITypePodmanArtifact
 			exists = true
 			digest, err = podman.ArtifactDigest(ctx, imageRef)
 			if err != nil {
-				return nil, false, nil, fmt.Errorf("getting artifact digest for %s: %w", imageRef, err)
+				return nil, false, nil, fmt.Errorf("%w: for %s: %w", errors.ErrGettingArtifactDigest, imageRef, err)
 			}
 		}
 
@@ -333,7 +333,7 @@ func (m *manager) collectNestedTargets(
 		// cache miss or invalid - extract nested targets for this image
 		appData, err := m.extractNestedTargetsForImage(ctx, appSpec, &imageSpec, configProvider)
 		if err != nil {
-			return nil, false, nil, fmt.Errorf("extracting nested targets for app %s: %w", appName, err)
+			return nil, false, nil, fmt.Errorf("%w: for app %s: %w", errors.ErrExtractingNestedTargets, appName, err)
 		}
 
 		// store app data for reuse during Verify
