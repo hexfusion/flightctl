@@ -92,6 +92,20 @@ func (h *TransportHandler) ReplaceCatalogStatus(w http.ResponseWriter, r *http.R
 	transport.SetResponse(w, apiResult, status)
 }
 
+// (PATCH /api/v1/catalogs/{name}/status)
+func (h *TransportHandler) PatchCatalogStatus(w http.ResponseWriter, r *http.Request, name string) {
+	var patch apiv1beta1.PatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		transport.SetParseFailureResponse(w, err)
+		return
+	}
+
+	domainPatch := h.converter.Common().PatchRequestToDomain(patch)
+	body, status := h.serviceHandler.PatchCatalogStatus(r.Context(), transport.OrgIDFromContext(r.Context()), name, domainPatch)
+	apiResult := h.converter.Catalog().FromDomain(body)
+	transport.SetResponse(w, apiResult, status)
+}
+
 // (GET /api/v1/catalogs/{name}/items)
 func (h *TransportHandler) ListCatalogItems(w http.ResponseWriter, r *http.Request, name string, params apiv1beta1.ListCatalogItemsParams) {
 	domainParams := h.converter.Catalog().ListItemsParamsToDomain(params)
