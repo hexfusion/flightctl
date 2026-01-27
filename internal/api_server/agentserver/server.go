@@ -332,6 +332,13 @@ func (s *AgentServer) prepareHTTPHandler(ctx context.Context, serviceHandler ser
 		r.Mount("/", negotiatedRouter)
 	})
 
+	// OCI Distribution API endpoints at /v2/
+	ociHandler := agenttransportv1beta1.NewOCITransportHandler(serviceHandler, s.log)
+	router.Route("/v2", func(r chi.Router) {
+		rateLimit(r)
+		ociHandler.RegisterRoutes(r)
+	})
+
 	return otelhttp.NewHandler(router, "agent-http-server"), nil
 }
 
