@@ -534,6 +534,68 @@ func (t *TracedService) ReplaceResourceSyncStatus(ctx context.Context, orgId uui
 	return resp, st
 }
 
+// --- Catalog ---
+func (t *TracedService) CreateCatalog(ctx context.Context, orgId uuid.UUID, catalog domain.Catalog) (*domain.Catalog, domain.Status) {
+	ctx, span := startSpan(ctx, "CreateCatalog")
+	resp, st := t.inner.CreateCatalog(ctx, orgId, catalog)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) ListCatalogs(ctx context.Context, orgId uuid.UUID, params domain.ListCatalogsParams) (*domain.CatalogList, domain.Status) {
+	ctx, span := startSpan(ctx, "ListCatalogs")
+	resp, st := t.inner.ListCatalogs(ctx, orgId, params)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) GetCatalog(ctx context.Context, orgId uuid.UUID, name string) (*domain.Catalog, domain.Status) {
+	ctx, span := startSpan(ctx, "GetCatalog")
+	resp, st := t.inner.GetCatalog(ctx, orgId, name)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) ReplaceCatalog(ctx context.Context, orgId uuid.UUID, name string, catalog domain.Catalog) (*domain.Catalog, domain.Status) {
+	ctx, span := startSpan(ctx, "ReplaceCatalog")
+	resp, st := t.inner.ReplaceCatalog(ctx, orgId, name, catalog)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) DeleteCatalog(ctx context.Context, orgId uuid.UUID, name string) domain.Status {
+	ctx, span := startSpan(ctx, "DeleteCatalog")
+	st := t.inner.DeleteCatalog(ctx, orgId, name)
+	endSpan(span, st)
+	return st
+}
+func (t *TracedService) PatchCatalog(ctx context.Context, orgId uuid.UUID, name string, patch domain.PatchRequest) (*domain.Catalog, domain.Status) {
+	ctx, span := startSpan(ctx, "PatchCatalog")
+	resp, st := t.inner.PatchCatalog(ctx, orgId, name, patch)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) GetCatalogStatus(ctx context.Context, orgId uuid.UUID, name string) (*domain.Catalog, domain.Status) {
+	ctx, span := startSpan(ctx, "GetCatalogStatus")
+	resp, st := t.inner.GetCatalogStatus(ctx, orgId, name)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) ReplaceCatalogStatus(ctx context.Context, orgId uuid.UUID, name string, catalog domain.Catalog) (*domain.Catalog, domain.Status) {
+	ctx, span := startSpan(ctx, "ReplaceCatalogStatus")
+	resp, st := t.inner.ReplaceCatalogStatus(ctx, orgId, name, catalog)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) ListCatalogItems(ctx context.Context, orgId uuid.UUID, catalogName string, params domain.ListCatalogItemsParams) (*domain.CatalogItemList, domain.Status) {
+	ctx, span := startSpan(ctx, "ListCatalogItems")
+	resp, st := t.inner.ListCatalogItems(ctx, orgId, catalogName, params)
+	endSpan(span, st)
+	return resp, st
+}
+func (t *TracedService) GetCatalogManifest(ctx context.Context, orgId uuid.UUID, catalogName, appName, reference string) ([]byte, string, domain.Status) {
+	ctx, span := startSpan(ctx, "GetCatalogManifest")
+	manifest, mediaType, st := t.inner.GetCatalogManifest(ctx, orgId, catalogName, appName, reference)
+	endSpan(span, st)
+	return manifest, mediaType, st
+}
+
 // --- TemplateVersion ---
 func (t *TracedService) CreateTemplateVersion(ctx context.Context, orgId uuid.UUID, tv domain.TemplateVersion, immediateRollout bool) (*domain.TemplateVersion, domain.Status) {
 	ctx, span := startSpan(ctx, "CreateTemplateVersion")
