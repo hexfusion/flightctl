@@ -117,6 +117,26 @@ func (h *ServiceHandler) ReplaceCatalogStatus(ctx context.Context, orgId uuid.UU
 	return result, StoreErrorToApiStatus(err, false, domain.CatalogKind, &name)
 }
 
+func (h *ServiceHandler) PatchCatalogStatus(ctx context.Context, orgId uuid.UUID, name string, patch domain.PatchRequest) (*domain.Catalog, domain.Status) {
+	currentObj, err := h.store.Catalog().Get(ctx, orgId, name)
+	if err != nil {
+		return nil, StoreErrorToApiStatus(err, false, domain.CatalogKind, &name)
+	}
+
+	newObj := &domain.Catalog{}
+	err = ApplyJSONPatch(ctx, currentObj, newObj, patch, "/catalogs/"+name+"/status")
+	if err != nil {
+		return nil, domain.StatusBadRequest(err.Error())
+	}
+
+	if errs := newObj.Validate(); len(errs) > 0 {
+		return nil, domain.StatusBadRequest(errors.Join(errs...).Error())
+	}
+
+	result, err := h.store.Catalog().UpdateStatus(ctx, orgId, newObj, h.callbackCatalogUpdated)
+	return result, StoreErrorToApiStatus(err, false, domain.CatalogKind, &name)
+}
+
 func (h *ServiceHandler) ListCatalogItems(ctx context.Context, orgId uuid.UUID, catalogName string, params domain.ListCatalogItemsParams) (*domain.CatalogItemList, domain.Status) {
 	listParams, status := prepareListParams(params.Continue, params.LabelSelector, nil, params.Limit)
 	if status != domain.StatusOK() {

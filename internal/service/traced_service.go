@@ -583,6 +583,12 @@ func (t *TracedService) ReplaceCatalogStatus(ctx context.Context, orgId uuid.UUI
 	endSpan(span, st)
 	return resp, st
 }
+func (t *TracedService) PatchCatalogStatus(ctx context.Context, orgId uuid.UUID, name string, patch domain.PatchRequest) (*domain.Catalog, domain.Status) {
+	ctx, span := startSpan(ctx, "PatchCatalogStatus")
+	resp, st := t.inner.PatchCatalogStatus(ctx, orgId, name, patch)
+	endSpan(span, st)
+	return resp, st
+}
 func (t *TracedService) ListCatalogItems(ctx context.Context, orgId uuid.UUID, catalogName string, params domain.ListCatalogItemsParams) (*domain.CatalogItemList, domain.Status) {
 	ctx, span := startSpan(ctx, "ListCatalogItems")
 	resp, st := t.inner.ListCatalogItems(ctx, orgId, catalogName, params)
