@@ -13,6 +13,7 @@ import (
 	"github.com/flightctl/flightctl/internal/agent/config"
 	"github.com/flightctl/flightctl/internal/agent/device/applications/lifecycle"
 	"github.com/flightctl/flightctl/internal/agent/device/applications/provider"
+	"github.com/flightctl/flightctl/internal/agent/device/errors"
 	"github.com/flightctl/flightctl/internal/agent/device/fileio"
 	"github.com/flightctl/flightctl/internal/agent/device/spec"
 	"github.com/flightctl/flightctl/internal/api/common"
@@ -524,7 +525,7 @@ func (m *manager) extractReferencesFromApplication(ctx context.Context, appSpec 
 	case v1beta1.ImageApplicationProviderType:
 		imageSpec, err := appSpec.AsImageApplicationProviderSpec()
 		if err != nil {
-			return nil, fmt.Errorf("getting image provider spec: %w", err)
+			return nil, fmt.Errorf("%w: image: %w", errors.ErrGettingProviderSpec, err)
 		}
 		refs = append(refs, ImageRef{Image: imageSpec.Image})
 
@@ -540,7 +541,7 @@ func (m *manager) extractReferencesFromApplication(ctx context.Context, appSpec 
 	case v1beta1.InlineApplicationProviderType:
 		inlineSpec, err := appSpec.AsInlineApplicationProviderSpec()
 		if err != nil {
-			return nil, fmt.Errorf("getting inline provider spec: %w", err)
+			return nil, fmt.Errorf("%w: inline: %w", errors.ErrGettingProviderSpec, err)
 		}
 
 		// Extract references from inline content based on app type
@@ -583,7 +584,7 @@ func (m *manager) extractReferencesFromApplication(ctx context.Context, appSpec 
 func (m *manager) extractComposeReferences(contents []v1beta1.ApplicationContent) ([]ImageRef, error) {
 	spec, err := client.ParseComposeFromSpec(contents)
 	if err != nil {
-		return nil, fmt.Errorf("parsing compose spec: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrParsingComposeSpec, err)
 	}
 
 	var refs []ImageRef
@@ -622,7 +623,7 @@ func (m *manager) extractImagesFromQuadletReferences(quadlets map[string]*common
 func (m *manager) extractQuadletReferences(contents []v1beta1.ApplicationContent) ([]ImageRef, error) {
 	quadlets, err := client.ParseQuadletReferencesFromSpec(contents)
 	if err != nil {
-		return nil, fmt.Errorf("parsing quadlet spec: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrParsingQuadletSpec, err)
 	}
 
 	return m.extractImagesFromQuadletReferences(quadlets), nil
@@ -642,14 +643,14 @@ func (m *manager) extractVolumeReferences(volumes []v1beta1.ApplicationVolume) (
 		case v1beta1.ImageApplicationVolumeProviderType:
 			provider, err := vol.AsImageVolumeProviderSpec()
 			if err != nil {
-				return nil, fmt.Errorf("getting image volume provider spec: %w", err)
+				return nil, fmt.Errorf("%w: image volume: %w", errors.ErrGettingProviderSpec, err)
 			}
 			refs = append(refs, ImageRef{Image: provider.Image.Reference})
 
 		case v1beta1.ImageMountApplicationVolumeProviderType:
 			provider, err := vol.AsImageMountVolumeProviderSpec()
 			if err != nil {
-				return nil, fmt.Errorf("getting image mount volume provider spec: %w", err)
+				return nil, fmt.Errorf("%w: image mount volume: %w", errors.ErrGettingProviderSpec, err)
 			}
 			refs = append(refs, ImageRef{Image: provider.Image.Reference})
 

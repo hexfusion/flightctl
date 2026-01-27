@@ -51,7 +51,7 @@ func newInlineHandler(appType v1beta1.AppType, name string, rw fileio.ReadWriter
 func newInline(log *log.PrefixLogger, podman *client.Podman, spec *v1beta1.ApplicationProviderSpec, readWriter fileio.ReadWriter) (*inlineProvider, error) {
 	provider, err := spec.AsInlineApplicationProviderSpec()
 	if err != nil {
-		return nil, fmt.Errorf("getting provider spec:%w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrGettingProviderSpec, err)
 	}
 	appName := lo.FromPtr(spec.Name)
 	appType := spec.AppType
@@ -66,7 +66,7 @@ func newInline(log *log.PrefixLogger, podman *client.Podman, spec *v1beta1.Appli
 	}
 	volumes, err := handler.Volumes()
 	if err != nil {
-		return nil, fmt.Errorf("getting volumes: %w", err)
+		return nil, fmt.Errorf("%w: %w", errors.ErrGettingVolumes, err)
 	}
 
 	volumeManager.AddVolumes(volumes)
@@ -101,7 +101,7 @@ func (p *inlineProvider) Verify(ctx context.Context) error {
 	// create a temporary directory to copy the image contents
 	tmpAppPath, err := p.readWriter.MkdirTemp("app_temp")
 	if err != nil {
-		return fmt.Errorf("creating tmp dir: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrCreatingTmpDir, err)
 	}
 	defer func() {
 		if err := p.readWriter.RemoveAll(tmpAppPath); err != nil {
@@ -126,7 +126,7 @@ func (p *inlineProvider) Install(ctx context.Context) error {
 	}
 
 	if err := writeENVFile(p.spec.Path, p.readWriter, p.spec.EnvVars); err != nil {
-		return fmt.Errorf("writing env file: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrWritingEnvFile, err)
 	}
 
 	return p.handler.Install(ctx)
@@ -134,12 +134,12 @@ func (p *inlineProvider) Install(ctx context.Context) error {
 
 func (p *inlineProvider) writeInlineContent(appPath string, contents []v1beta1.ApplicationContent) error {
 	if err := p.readWriter.MkdirAll(appPath, fileio.DefaultDirectoryPermissions); err != nil {
-		return fmt.Errorf("creating directory: %w", err)
+		return fmt.Errorf("creating directory %w: %w", errors.WithElement(appPath), err)
 	}
 	for _, content := range contents {
 		contentBytes, err := fileio.DecodeContent(lo.FromPtr(content.Content), content.ContentEncoding)
 		if err != nil {
-			return fmt.Errorf("decoding application content: %w", err)
+			return fmt.Errorf("%w: %w", errors.ErrDecodingApplicationContent, err)
 		}
 		contentPath := content.Path
 		if len(contentPath) == 0 {
@@ -154,7 +154,7 @@ func (p *inlineProvider) writeInlineContent(appPath string, contents []v1beta1.A
 
 func (p *inlineProvider) Remove(ctx context.Context) error {
 	if err := p.readWriter.RemoveAll(p.handler.AppPath()); err != nil {
-		return fmt.Errorf("removing application: %w", err)
+		return fmt.Errorf("%w: %w", errors.ErrRemovingApplication, err)
 	}
 	return p.handler.Remove(ctx)
 }
