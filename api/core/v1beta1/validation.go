@@ -734,6 +734,30 @@ func (rs *ResourceSync) ValidateUpdate(newObj *ResourceSync) []error {
 		rs.Status, newObj.Status)
 }
 
+func (c Catalog) Validate() []error {
+	allErrs := []error{}
+	allErrs = append(allErrs, validation.ValidateResourceName(c.Metadata.Name)...)
+	allErrs = append(allErrs, validation.ValidateLabels(c.Metadata.Labels)...)
+	allErrs = append(allErrs, validation.ValidateAnnotations(c.Metadata.Annotations)...)
+	// Validate type is present and valid
+	if c.Spec.Type != Local && c.Spec.Type != Remote {
+		allErrs = append(allErrs, errors.New("spec.type must be 'local' or 'remote'"))
+	}
+	// For remote type, url is required
+	if c.Spec.Type == Remote && (c.Spec.Url == nil || *c.Spec.Url == "") {
+		allErrs = append(allErrs, errors.New("spec.url is required for remote catalog sources"))
+	}
+	return allErrs
+}
+
+// ValidateUpdate ensures immutable fields are unchanged for Catalog.
+func (c *Catalog) ValidateUpdate(newObj *Catalog) []error {
+	return validateImmutableCoreFields(c.Metadata.Name, newObj.Metadata.Name,
+		c.ApiVersion, newObj.ApiVersion,
+		c.Kind, newObj.Kind,
+		c.Status, newObj.Status)
+}
+
 func (tv TemplateVersion) Validate() []error {
 	allErrs := []error{}
 	allErrs = append(allErrs, validation.ValidateResourceName(tv.Metadata.Name)...)
