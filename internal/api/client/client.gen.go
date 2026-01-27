@@ -166,6 +166,11 @@ type ClientInterface interface {
 	// GetCatalogStatus request
 	GetCatalogStatus(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PatchCatalogStatusWithBody request with any body
+	PatchCatalogStatusWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PatchCatalogStatusWithApplicationJSONPatchPlusJSONBody(ctx context.Context, name string, body PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ReplaceCatalogStatusWithBody request with any body
 	ReplaceCatalogStatusWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -719,6 +724,30 @@ func (c *Client) ListCatalogItems(ctx context.Context, name string, params *List
 
 func (c *Client) GetCatalogStatus(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetCatalogStatusRequest(c.Server, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchCatalogStatusWithBody(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchCatalogStatusRequestWithBody(c.Server, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchCatalogStatusWithApplicationJSONPatchPlusJSONBody(ctx context.Context, name string, body PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchCatalogStatusRequestWithApplicationJSONPatchPlusJSONBody(c.Server, name, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2694,6 +2723,53 @@ func NewGetCatalogStatusRequest(server string, name string) (*http.Request, erro
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewPatchCatalogStatusRequestWithApplicationJSONPatchPlusJSONBody calls the generic PatchCatalogStatus builder with application/json-patch+json body
+func NewPatchCatalogStatusRequestWithApplicationJSONPatchPlusJSONBody(server string, name string, body PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPatchCatalogStatusRequestWithBody(server, name, "application/json-patch+json", bodyReader)
+}
+
+// NewPatchCatalogStatusRequestWithBody generates requests for PatchCatalogStatus with any type of body
+func NewPatchCatalogStatusRequestWithBody(server string, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "name", runtime.ParamLocationPath, name)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/catalogs/%s/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -5865,6 +5941,11 @@ type ClientWithResponsesInterface interface {
 	// GetCatalogStatusWithResponse request
 	GetCatalogStatusWithResponse(ctx context.Context, name string, reqEditors ...RequestEditorFn) (*GetCatalogStatusResponse, error)
 
+	// PatchCatalogStatusWithBodyWithResponse request with any body
+	PatchCatalogStatusWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchCatalogStatusResponse, error)
+
+	PatchCatalogStatusWithApplicationJSONPatchPlusJSONBodyWithResponse(ctx context.Context, name string, body PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchCatalogStatusResponse, error)
+
 	// ReplaceCatalogStatusWithBodyWithResponse request with any body
 	ReplaceCatalogStatusWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceCatalogStatusResponse, error)
 
@@ -6615,6 +6696,34 @@ func (r GetCatalogStatusResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetCatalogStatusResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PatchCatalogStatusResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Catalog
+	JSON400      *Status
+	JSON401      *Status
+	JSON403      *Status
+	JSON404      *Status
+	JSON429      *Status
+	JSON503      *Status
+}
+
+// Status returns HTTPResponse.Status
+func (r PatchCatalogStatusResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PatchCatalogStatusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -8523,6 +8632,23 @@ func (c *ClientWithResponses) GetCatalogStatusWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseGetCatalogStatusResponse(rsp)
+}
+
+// PatchCatalogStatusWithBodyWithResponse request with arbitrary body returning *PatchCatalogStatusResponse
+func (c *ClientWithResponses) PatchCatalogStatusWithBodyWithResponse(ctx context.Context, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchCatalogStatusResponse, error) {
+	rsp, err := c.PatchCatalogStatusWithBody(ctx, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchCatalogStatusResponse(rsp)
+}
+
+func (c *ClientWithResponses) PatchCatalogStatusWithApplicationJSONPatchPlusJSONBodyWithResponse(ctx context.Context, name string, body PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchCatalogStatusResponse, error) {
+	rsp, err := c.PatchCatalogStatusWithApplicationJSONPatchPlusJSONBody(ctx, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchCatalogStatusResponse(rsp)
 }
 
 // ReplaceCatalogStatusWithBodyWithResponse request with arbitrary body returning *ReplaceCatalogStatusResponse
@@ -10443,6 +10569,74 @@ func ParseGetCatalogStatusResponse(rsp *http.Response) (*GetCatalogStatusRespons
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Status
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Status
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Status
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Status
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Status
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePatchCatalogStatusResponse parses an HTTP response from a PatchCatalogStatusWithResponse call
+func ParsePatchCatalogStatusResponse(rsp *http.Response) (*PatchCatalogStatusResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PatchCatalogStatusResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Catalog
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Status
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Status

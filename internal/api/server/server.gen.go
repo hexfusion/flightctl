@@ -75,6 +75,9 @@ type ServerInterface interface {
 	// (GET /catalogs/{name}/status)
 	GetCatalogStatus(w http.ResponseWriter, r *http.Request, name string)
 
+	// (PATCH /catalogs/{name}/status)
+	PatchCatalogStatus(w http.ResponseWriter, r *http.Request, name string)
+
 	// (PUT /catalogs/{name}/status)
 	ReplaceCatalogStatus(w http.ResponseWriter, r *http.Request, name string)
 
@@ -352,6 +355,11 @@ func (_ Unimplemented) ListCatalogItems(w http.ResponseWriter, r *http.Request, 
 
 // (GET /catalogs/{name}/status)
 func (_ Unimplemented) GetCatalogStatus(w http.ResponseWriter, r *http.Request, name string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /catalogs/{name}/status)
+func (_ Unimplemented) PatchCatalogStatus(w http.ResponseWriter, r *http.Request, name string) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1170,6 +1178,31 @@ func (siw *ServerInterfaceWrapper) GetCatalogStatus(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetCatalogStatus(w, r, name)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchCatalogStatus operation middleware
+func (siw *ServerInterfaceWrapper) PatchCatalogStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "name" -------------
+	var name string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "name", chi.URLParam(r, "name"), &name, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchCatalogStatus(w, r, name)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3070,6 +3103,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/catalogs/{name}/status", wrapper.GetCatalogStatus)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/catalogs/{name}/status", wrapper.PatchCatalogStatus)
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/catalogs/{name}/status", wrapper.ReplaceCatalogStatus)

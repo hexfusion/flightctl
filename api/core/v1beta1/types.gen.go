@@ -3407,6 +3407,9 @@ type PatchCatalogApplicationJSONPatchPlusJSONRequestBody = PatchRequest
 // ReplaceCatalogJSONRequestBody defines body for ReplaceCatalog for application/json ContentType.
 type ReplaceCatalogJSONRequestBody = Catalog
 
+// PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody defines body for PatchCatalogStatus for application/json-patch+json ContentType.
+type PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody = PatchRequest
+
 // ReplaceCatalogStatusJSONRequestBody defines body for ReplaceCatalogStatus for application/json ContentType.
 type ReplaceCatalogStatusJSONRequestBody = Catalog
 

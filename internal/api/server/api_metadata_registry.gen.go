@@ -219,6 +219,14 @@ var APIMetadataMap = map[string]EndpointMetadata{
 			{Version: "v1beta1", DeprecatedAt: nil},
 		},
 	},
+	"PATCH:/catalogs/{name}/status": {
+		OperationID: "patchCatalogStatus",
+		Resource:    "catalogs",
+		Action:      "patch",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
 	"PUT:/catalogs/{name}/status": {
 		OperationID: "replaceCatalogStatus",
 		Resource:    "catalogs",
