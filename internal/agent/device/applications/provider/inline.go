@@ -133,7 +133,7 @@ func (p *inlineProvider) Install(ctx context.Context) error {
 
 func (p *inlineProvider) writeInlineContent(appPath string, contents []v1beta1.ApplicationContent) error {
 	if err := p.readWriter.MkdirAll(appPath, fileio.DefaultDirectoryPermissions); err != nil {
-		return fmt.Errorf("creating directory: %w", err)
+		return fmt.Errorf("creating directory %w: %w", errors.WithElement(appPath), err)
 	}
 	for _, content := range contents {
 		contentBytes, err := fileio.DecodeContent(lo.FromPtr(content.Content), content.ContentEncoding)

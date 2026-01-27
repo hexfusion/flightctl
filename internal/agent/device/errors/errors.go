@@ -415,6 +415,33 @@ type reasoner interface {
 	Reason() string
 }
 
+// Element is an error type that carries an element identifier through
+// the error chain. It implements the error interface so it can be wrapped
+// and extracted via errors.As.
+type Element struct {
+	Value string
+}
+
+// WithElement creates a new Element error with the given identifier.
+func WithElement(s string) *Element {
+	return &Element{Value: s}
+}
+
+// Error implements the error interface.
+func (e *Element) Error() string {
+	return e.Value
+}
+
+// GetElement extracts the element identifier from an error chain.
+// Returns an empty string if no Element is found.
+func GetElement(err error) string {
+	var elem *Element
+	if errors.As(err, &elem) {
+		return elem.Value
+	}
+	return ""
+}
+
 // Reason extracts the underlying reason from any error if it implements a Reason method
 // If no Reason method is detected, Error is returned
 func Reason(err error) string {

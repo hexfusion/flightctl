@@ -93,6 +93,77 @@ func TestFormatError(t *testing.T) {
 	}
 }
 
+func TestGetElement(t *testing.T) {
+	testCases := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name:     "extracts element from direct wrap",
+			err:      fmt.Errorf("creating directory %w: %w", WithElement("/var/lib/myapp"), ErrPermissionDenied),
+			expected: "/var/lib/myapp",
+		},
+		{
+			name:     "extracts element from nested chain",
+			err:      fmt.Errorf("%w: %w", ErrPhasePreparing, fmt.Errorf("%w: %w", ErrComponentApplications, fmt.Errorf("installing %w: %w", WithElement("nginx"), ErrNetwork))),
+			expected: "nginx",
+		},
+		{
+			name:     "no element returns empty string",
+			err:      fmt.Errorf("%w: %w", ErrPhasePreparing, ErrNetwork),
+			expected: "",
+		},
+		{
+			name:     "nil error returns empty string",
+			err:      nil,
+			expected: "",
+		},
+		{
+			name:     "element survives Join",
+			err:      Join(ErrNetwork, WithElement("app-name")),
+			expected: "app-name",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			require.Equal(tc.expected, GetElement(tc.err))
+		})
+	}
+}
+
+func TestFormatErrorWithElement(t *testing.T) {
+	testCases := []struct {
+		name            string
+		err             error
+		expectedElement string
+	}{
+		{
+			name: "extracts element from full chain",
+			err: fmt.Errorf("%w: %w", ErrPhasePreparing,
+				fmt.Errorf("%w: %w", ErrComponentApplications,
+					fmt.Errorf("parsing compose spec %w: %w", WithElement("myapp"), ErrParsingComposeSpec))),
+			expectedElement: "myapp",
+		},
+		{
+			name: "no element in chain",
+			err: fmt.Errorf("%w: %w", ErrPhasePreparing,
+				fmt.Errorf("%w: %w", ErrComponentApplications, ErrNetwork)),
+			expectedElement: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require := require.New(t)
+			se := FormatError(tc.err)
+			require.Equal(tc.expectedElement, se.Element)
+		})
+	}
+}
+
 func TestMessage(t *testing.T) {
 	testCases := []struct {
 		name     string

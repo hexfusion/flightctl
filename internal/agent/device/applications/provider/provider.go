@@ -344,7 +344,7 @@ func ExtractNestedTargetsFromImage(
 	}
 
 	if appType != v1beta1.AppTypeCompose && appType != v1beta1.AppTypeQuadlet {
-		return nil, fmt.Errorf("%w for app %s: %s", errors.ErrUnsupportedAppType, appName, appType)
+		return nil, fmt.Errorf("%w %w: %s", errors.ErrUnsupportedAppType, errors.WithElement(appName), appType)
 	}
 
 	// extract nested targets
@@ -706,7 +706,7 @@ func extractAppDataFromOCITarget(
 ) (*AppData, error) {
 	tmpAppPath, err := readWriter.MkdirTemp("app_temp")
 	if err != nil {
-		return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrCreatingTmpDir, appName, imageRef, err)
+		return nil, fmt.Errorf("%w %w: %w", errors.ErrCreatingTmpDir, errors.WithElement(appName), err)
 	}
 
 	cleanupFn := func() error {
@@ -716,24 +716,24 @@ func extractAppDataFromOCITarget(
 	ociType, err := detectOCIType(ctx, podman, imageRef)
 	if err != nil {
 		if rmErr := cleanupFn(); rmErr != nil {
-			return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrDetectingOCIType, appName, imageRef, err, rmErr)
+			return nil, fmt.Errorf("%w %w: %w (cleanup failed: %v)", errors.ErrDetectingOCIType, errors.WithElement(appName), err, rmErr)
 		}
-		return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrDetectingOCIType, appName, imageRef, err)
+		return nil, fmt.Errorf("%w %w: %w", errors.ErrDetectingOCIType, errors.WithElement(appName), err)
 	}
 
 	if ociType == dependency.OCITypePodmanArtifact {
 		if err := extractAndProcessArtifact(ctx, podman, log.NewPrefixLogger(""), imageRef, tmpAppPath, readWriter); err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("%w: contents for app %s (%s): %w (cleanup failed: %v)", errors.ErrExtractingArtifact, appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w %w: %w (cleanup failed: %v)", errors.ErrExtractingArtifact, errors.WithElement(appName), err, rmErr)
 			}
-			return nil, fmt.Errorf("%w: contents for app %s (%s): %w", errors.ErrExtractingArtifact, appName, imageRef, err)
+			return nil, fmt.Errorf("%w %w: %w", errors.ErrExtractingArtifact, errors.WithElement(appName), err)
 		}
 	} else {
 		if err := podman.CopyContainerData(ctx, imageRef, tmpAppPath); err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("%w: contents for app %s (%s): %w (cleanup failed: %v)", errors.ErrCopyingImage, appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w %w: %w (cleanup failed: %v)", errors.ErrCopyingImage, errors.WithElement(appName), err, rmErr)
 			}
-			return nil, fmt.Errorf("%w: contents for app %s (%s): %w", errors.ErrCopyingImage, appName, imageRef, err)
+			return nil, fmt.Errorf("%w %w: %w", errors.ErrCopyingImage, errors.WithElement(appName), err)
 		}
 	}
 
@@ -745,17 +745,17 @@ func extractAppDataFromOCITarget(
 		spec, err := client.ParseComposeSpecFromDir(readWriter, tmpAppPath)
 		if err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrParsingComposeSpec, appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w %w: %w (cleanup failed: %v)", errors.ErrParsingComposeSpec, errors.WithElement(appName), err, rmErr)
 			}
-			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrParsingComposeSpec, appName, imageRef, err)
+			return nil, fmt.Errorf("%w %w: %w", errors.ErrParsingComposeSpec, errors.WithElement(appName), err)
 		}
 
 		// validate the compose spec
 		if errs := validation.ValidateComposeSpec(spec); len(errs) > 0 {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrValidatingComposeSpec, appName, imageRef, errors.Join(errs...), rmErr)
+				return nil, fmt.Errorf("%w %w: %w (cleanup failed: %v)", errors.ErrValidatingComposeSpec, errors.WithElement(appName), errors.Join(errs...), rmErr)
 			}
-			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrValidatingComposeSpec, appName, imageRef, errors.Join(errs...))
+			return nil, fmt.Errorf("%w %w: %w", errors.ErrValidatingComposeSpec, errors.WithElement(appName), errors.Join(errs...))
 		}
 
 		// extract images
@@ -775,9 +775,9 @@ func extractAppDataFromOCITarget(
 		spec, err := client.ParseQuadletReferencesFromDir(readWriter, tmpAppPath)
 		if err != nil {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrParsingQuadletSpec, appName, imageRef, err, rmErr)
+				return nil, fmt.Errorf("%w %w: %w (cleanup failed: %v)", errors.ErrParsingQuadletSpec, errors.WithElement(appName), err, rmErr)
 			}
-			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrParsingQuadletSpec, appName, imageRef, err)
+			return nil, fmt.Errorf("%w %w: %w", errors.ErrParsingQuadletSpec, errors.WithElement(appName), err)
 		}
 
 		// validate all quadlets before extracting targets
@@ -789,9 +789,9 @@ func extractAppDataFromOCITarget(
 		}
 		if len(validationErrs) > 0 {
 			if rmErr := cleanupFn(); rmErr != nil {
-				return nil, fmt.Errorf("%w: for app %s (%s): %w (cleanup failed: %v)", errors.ErrValidatingQuadletSpec, appName, imageRef, errors.Join(validationErrs...), rmErr)
+				return nil, fmt.Errorf("%w %w: %w (cleanup failed: %v)", errors.ErrValidatingQuadletSpec, errors.WithElement(appName), errors.Join(validationErrs...), rmErr)
 			}
-			return nil, fmt.Errorf("%w: for app %s (%s): %w", errors.ErrValidatingQuadletSpec, appName, imageRef, errors.Join(validationErrs...))
+			return nil, fmt.Errorf("%w %w: %w", errors.ErrValidatingQuadletSpec, errors.WithElement(appName), errors.Join(validationErrs...))
 		}
 
 		// extract images
@@ -801,9 +801,9 @@ func extractAppDataFromOCITarget(
 
 	default:
 		if rmErr := cleanupFn(); rmErr != nil {
-			return nil, fmt.Errorf("%w for app %s (%s): %s (cleanup failed: %v)", errors.ErrUnsupportedAppType, appName, imageRef, appType, rmErr)
+			return nil, fmt.Errorf("%w %w: %s (cleanup failed: %v)", errors.ErrUnsupportedAppType, errors.WithElement(appName), appType, rmErr)
 		}
-		return nil, fmt.Errorf("%w for app %s (%s): %s", errors.ErrUnsupportedAppType, appName, imageRef, appType)
+		return nil, fmt.Errorf("%w %w: %s", errors.ErrUnsupportedAppType, errors.WithElement(appName), appType)
 	}
 
 	return &AppData{

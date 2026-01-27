@@ -306,7 +306,7 @@ func detectOCIType(ctx context.Context, podman *client.Podman, imageRef string) 
 	}
 
 	// Reference doesn't exist locally - this shouldn't happen after prefetch
-	return "", fmt.Errorf("OCI reference %s not found locally - cannot determine type", imageRef)
+	return "", fmt.Errorf("OCI reference %w not found locally - cannot determine type", errors.WithElement(imageRef))
 }
 
 // extractAndProcessArtifact extracts an artifact and handles tar/tar.gz files.

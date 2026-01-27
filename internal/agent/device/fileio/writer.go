@@ -480,10 +480,10 @@ func (w *writer) CreateManagedFile(file v1beta1.FileSpec) (ManagedFile, error) {
 
 func (w *writer) OverwriteAndWipe(file string) error {
 	if err := w.overwriteFileWithRandomData(file); err != nil {
-		return fmt.Errorf("could not overwrite file %s with random data: %w", file, err)
+		return fmt.Errorf("could not overwrite file %w with random data: %w", errors.WithElement(file), err)
 	}
 	if err := w.RemoveFile(file); err != nil {
-		return fmt.Errorf("could not remove file %s: %w", file, err)
+		return fmt.Errorf("could not remove file %w: %w", errors.WithElement(file), err)
 	}
 	return nil
 }
@@ -518,7 +518,7 @@ func (w *writer) overwriteFileWithRandomData(file string) error {
 func writeFileAtomically(fpath string, b []byte, dirMode, fileMode os.FileMode, uid, gid int) error {
 	dir := filepath.Dir(fpath)
 	if err := os.MkdirAll(dir, dirMode); err != nil {
-		return fmt.Errorf("failed to create directory %q: %w", dir, err)
+		return fmt.Errorf("failed to create directory %w: %w", errors.WithElement(dir), err)
 	}
 	t, err := renameio.TempFile(dir, fpath)
 	if err != nil {
@@ -709,7 +709,7 @@ func UnpackTar(writer Writer, tarPath, destDir string) error {
 				perm = DefaultDirectoryPermissions
 			}
 			if err := writer.MkdirAll(destPath, perm); err != nil {
-				return fmt.Errorf("creating directory %s: %w", destPath, err)
+				return fmt.Errorf("creating directory %w: %w", errors.WithElement(destPath), err)
 			}
 		case tar.TypeReg:
 			if perm == 0 {
@@ -720,13 +720,13 @@ func UnpackTar(writer Writer, tarPath, destDir string) error {
 			}
 			destFile, err := writer.CreateFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
 			if err != nil {
-				return fmt.Errorf("creating file %s: %w", destPath, err)
+				return fmt.Errorf("creating file %w: %w", errors.WithElement(destPath), err)
 			}
 			// Use LimitReader to prevent decompression bombs
 			limitedReader := io.LimitReader(tarReader, header.Size)
 			if _, err := io.Copy(destFile, limitedReader); err != nil { // #nosec G110
 				destFile.Close()
-				return fmt.Errorf("writing file %s: %w", destPath, err)
+				return fmt.Errorf("writing file %w: %w", errors.WithElement(destPath), err)
 			}
 			destFile.Close()
 		}

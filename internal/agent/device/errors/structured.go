@@ -12,6 +12,7 @@ import (
 type StructuredError struct {
 	Phase      error
 	Component  error
+	Element    string
 	Cause      error
 	Category   Category
 	StatusCode codes.Code
@@ -27,6 +28,7 @@ func FormatError(err error) *StructuredError {
 	return &StructuredError{
 		Phase:      phase,
 		Component:  component,
+		Element:    GetElement(err),
 		Cause:      rest,
 		StatusCode: statusCode,
 		Category:   inferCategory(statusCode),
