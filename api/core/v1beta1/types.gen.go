@@ -74,6 +74,13 @@ const (
 	AuthStaticRoleAssignmentTypeStatic AuthStaticRoleAssignmentType = "static"
 )
 
+// Defines values for CatalogItemDisplayInfoVisibility.
+const (
+	Deprecated CatalogItemDisplayInfoVisibility = "deprecated"
+	Draft      CatalogItemDisplayInfoVisibility = "draft"
+	Published  CatalogItemDisplayInfoVisibility = "published"
+)
+
 // Defines values for ConditionStatus.
 const (
 	ConditionStatusFalse   ConditionStatus = "False"
@@ -423,6 +430,7 @@ const (
 // Defines values for ResourceKind.
 const (
 	ResourceKindAuthProvider              ResourceKind = "AuthProvider"
+	ResourceKindCatalog                   ResourceKind = "Catalog"
 	ResourceKindCertificateSigningRequest ResourceKind = "CertificateSigningRequest"
 	ResourceKindDevice                    ResourceKind = "Device"
 	ResourceKindEnrollmentRequest         ResourceKind = "EnrollmentRequest"
@@ -816,6 +824,147 @@ type BatchSequence struct {
 
 	// Strategy The strategy of choice for device selection in rollout policy.
 	Strategy RolloutStrategy `json:"strategy"`
+}
+
+// Catalog Catalog represents a source of application catalog items, mapping an alias to a registry.
+type Catalog struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.
+	ApiVersion string `json:"apiVersion"`
+
+	// Kind Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.
+	Kind string `json:"kind"`
+
+	// Metadata ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.
+	Metadata ObjectMeta `json:"metadata"`
+
+	// Spec CatalogSpec describes the configuration of a catalog. Catalogs are containers for locally-managed CatalogItems.
+	Spec CatalogSpec `json:"spec"`
+
+	// Status CatalogStatus represents the current status of a catalog source.
+	Status *CatalogStatus `json:"status,omitempty"`
+}
+
+// CatalogItem CatalogItem represents an application template from a catalog. It provides default configuration values that can be customized when adding the application to a fleet.
+type CatalogItem struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object.
+	ApiVersion string `json:"apiVersion"`
+
+	// Kind Kind is a string value representing the REST resource this object represents.
+	Kind string `json:"kind"`
+
+	// Metadata ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.
+	Metadata ObjectMeta `json:"metadata"`
+
+	// Spec CatalogItemSpec defines the configuration for a catalog item. Validation happens during catalog sync, not via API constraints.
+	Spec CatalogItemSpec `json:"spec"`
+}
+
+// CatalogItemDisplayInfo Display and organizational information for a catalog item shown in UI/CLI.
+type CatalogItemDisplayInfo struct {
+	// Category Category for organizing items (e.g., "monitoring", "networking").
+	Category *string `json:"category,omitempty"`
+
+	// DocumentationUrl Link to external documentation.
+	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+
+	// Homepage The homepage URL for the catalog item project.
+	Homepage *string `json:"homepage,omitempty"`
+
+	// Icon URL or data URI of the catalog item icon for display in UI.
+	Icon *string `json:"icon,omitempty"`
+
+	// Maintainer Maintainer or author of the catalog item (email or team name).
+	Maintainer *string `json:"maintainer,omitempty"`
+
+	// Name Human-readable display name shown in catalog listings.
+	Name *string `json:"name,omitempty"`
+
+	// Readme Detailed description of the catalog item, preferably in markdown format.
+	Readme *string `json:"readme,omitempty"`
+
+	// ShortDescription A brief one-line description of the catalog item.
+	ShortDescription *string `json:"shortDescription,omitempty"`
+
+	// SupportedArchitectures CPU architectures supported by this item (e.g., amd64, arm64). If omitted, assumes multi-arch manifest.
+	SupportedArchitectures *[]string `json:"supportedArchitectures,omitempty"`
+
+	// Version Display version for the catalog item (e.g., the recommended or latest version).
+	Version *string `json:"version,omitempty"`
+
+	// Visibility Visibility controls who can see/use the item.
+	Visibility *CatalogItemDisplayInfoVisibility `json:"visibility,omitempty"`
+}
+
+// CatalogItemDisplayInfoVisibility Visibility controls who can see/use the item.
+type CatalogItemDisplayInfoVisibility string
+
+// CatalogItemList CatalogItemList is a list of CatalogItems.
+type CatalogItemList struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.
+	ApiVersion string `json:"apiVersion"`
+
+	// Items List of CatalogItems.
+	Items []CatalogItem `json:"items"`
+
+	// Kind Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.
+	Kind string `json:"kind"`
+
+	// Metadata ListMeta describes metadata that synthetic resources must have, including lists and various status objects. A resource may have only one of {ObjectMeta, ListMeta}.
+	Metadata ListMeta `json:"metadata"`
+}
+
+// CatalogItemSpec CatalogItemSpec defines the configuration for a catalog item. Validation happens during catalog sync, not via API constraints.
+type CatalogItemSpec struct {
+	// Catalog Name of the catalog this item belongs to.
+	Catalog string `json:"catalog"`
+
+	// Channels Channels map channel names to version tags. Common channels: stable, fast, preview. Example: {"stable": "v2.40.0", "fast": "v2.45.0"}.
+	Channels map[string]string `json:"channels"`
+
+	// DisplayInfo Display and organizational information for a catalog item shown in UI/CLI.
+	DisplayInfo *CatalogItemDisplayInfo `json:"displayInfo,omitempty"`
+
+	// Reference Base content reference (no version/tag). Interpretation depends on type: OCI reference for container-image/helm-chart, URL for video/ai-model, etc. The version comes from the selected channel.
+	Reference string `json:"reference"`
+
+	// Type Application type (e.g., container-image, helm-chart, quadlet). Determines how values are interpreted when rendering to ApplicationSpec.
+	Type string `json:"type"`
+
+	// Values Default configuration values. Interpretation depends on type: container-image -> envVars, helm-chart -> helm values.
+	Values *map[string]interface{} `json:"values,omitempty"`
+}
+
+// CatalogList CatalogList is a list of Catalogs.
+type CatalogList struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.
+	ApiVersion string `json:"apiVersion"`
+
+	// Items List of Catalogs.
+	Items []Catalog `json:"items"`
+
+	// Kind Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.
+	Kind string `json:"kind"`
+
+	// Metadata ListMeta describes metadata that synthetic resources must have, including lists and various status objects. A resource may have only one of {ObjectMeta, ListMeta}.
+	Metadata ListMeta `json:"metadata"`
+}
+
+// CatalogSpec CatalogSpec describes the configuration of a catalog. Catalogs are containers for locally-managed CatalogItems.
+type CatalogSpec struct {
+	// Description Human-readable description of the catalog purpose.
+	Description *string `json:"description,omitempty"`
+}
+
+// CatalogStatus CatalogStatus represents the current status of a catalog source.
+type CatalogStatus struct {
+	// Conditions Current state of the catalog source.
+	Conditions []Condition `json:"conditions"`
+
+	// ItemCount Number of items in the catalog.
+	ItemCount *int `json:"itemCount,omitempty"`
+
+	// LastSyncTime Last time the catalog was synced from the source.
+	LastSyncTime *time.Time `json:"lastSyncTime,omitempty"`
 }
 
 // CertificateSigningRequest CertificateSigningRequest represents a request for a signed certificate from the CA.
@@ -3017,6 +3166,33 @@ type ListAuthProvidersParams struct {
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListCatalogsParams defines parameters for ListCatalogs.
+type ListCatalogsParams struct {
+	// Continue An optional parameter to query more results from the server. The value of the paramter must match the value of the 'continue' field in the previous list response.
+	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
+
+	// LabelSelector A selector to restrict the list of returned objects by their labels. Defaults to everything.
+	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+
+	// FieldSelector A selector to restrict the list of returned objects by their fields, supporting operators like '=', '==', and '!=' (e.g., "key1=value1,key2!=value2").
+	FieldSelector *string `form:"fieldSelector,omitempty" json:"fieldSelector,omitempty"`
+
+	// Limit The maximum number of results returned in the list response. The server will set the 'continue' field in the list response if more results exist. The continue value may then be specified as parameter in a subsequent query.
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListCatalogItemsParams defines parameters for ListCatalogItems.
+type ListCatalogItemsParams struct {
+	// Continue An optional parameter to query more results from the server.
+	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
+
+	// LabelSelector A selector to restrict the list of returned objects by their labels.
+	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+
+	// Limit The maximum number of results returned in the list response.
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListCertificateSigningRequestsParams defines parameters for ListCertificateSigningRequests.
 type ListCertificateSigningRequestsParams struct {
 	// Continue An optional parameter to query more results from the server. The value of the paramter must match the value of the 'continue' field in the previous list response.
@@ -3202,6 +3378,21 @@ type PatchAuthProviderApplicationJSONPatchPlusJSONRequestBody = PatchRequest
 
 // ReplaceAuthProviderJSONRequestBody defines body for ReplaceAuthProvider for application/json ContentType.
 type ReplaceAuthProviderJSONRequestBody = AuthProvider
+
+// CreateCatalogJSONRequestBody defines body for CreateCatalog for application/json ContentType.
+type CreateCatalogJSONRequestBody = Catalog
+
+// PatchCatalogApplicationJSONPatchPlusJSONRequestBody defines body for PatchCatalog for application/json-patch+json ContentType.
+type PatchCatalogApplicationJSONPatchPlusJSONRequestBody = PatchRequest
+
+// ReplaceCatalogJSONRequestBody defines body for ReplaceCatalog for application/json ContentType.
+type ReplaceCatalogJSONRequestBody = Catalog
+
+// PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody defines body for PatchCatalogStatus for application/json-patch+json ContentType.
+type PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody = PatchRequest
+
+// ReplaceCatalogStatusJSONRequestBody defines body for ReplaceCatalogStatus for application/json ContentType.
+type ReplaceCatalogStatusJSONRequestBody = Catalog
 
 // CreateCertificateSigningRequestJSONRequestBody defines body for CreateCertificateSigningRequest for application/json ContentType.
 type CreateCertificateSigningRequestJSONRequestBody = CertificateSigningRequest
