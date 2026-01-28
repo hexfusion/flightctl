@@ -25,6 +25,7 @@ type EndpointMetadata struct {
 }
 const (
 	API_RESOURCE_AUTHPROVIDERS = "authproviders"
+	API_RESOURCE_CATALOGS = "catalogs"
 	API_RESOURCE_CERTIFICATESIGNINGREQUESTS = "certificatesigningrequests"
 	API_RESOURCE_CERTIFICATESIGNINGREQUESTS_APPROVAL = "certificatesigningrequests/approval"
 	API_RESOURCE_DEVICES = "devices"
@@ -149,6 +150,86 @@ var APIMetadataMap = map[string]EndpointMetadata{
 	"PUT:/authproviders/{name}": {
 		OperationID: "replaceAuthProvider",
 		Resource:    "authproviders",
+		Action:      "update",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"GET:/catalogs": {
+		OperationID: "listCatalogs",
+		Resource:    "catalogs",
+		Action:      "list",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"POST:/catalogs": {
+		OperationID: "createCatalog",
+		Resource:    "catalogs",
+		Action:      "create",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"DELETE:/catalogs/{name}": {
+		OperationID: "deleteCatalog",
+		Resource:    "catalogs",
+		Action:      "delete",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"GET:/catalogs/{name}": {
+		OperationID: "getCatalog",
+		Resource:    "catalogs",
+		Action:      "get",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"PATCH:/catalogs/{name}": {
+		OperationID: "patchCatalog",
+		Resource:    "catalogs",
+		Action:      "patch",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"PUT:/catalogs/{name}": {
+		OperationID: "replaceCatalog",
+		Resource:    "catalogs",
+		Action:      "update",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"GET:/catalogs/{name}/items": {
+		OperationID: "listCatalogItems",
+		Resource:    "catalogs",
+		Action:      "get",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"GET:/catalogs/{name}/status": {
+		OperationID: "getCatalogStatus",
+		Resource:    "catalogs",
+		Action:      "get",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"PATCH:/catalogs/{name}/status": {
+		OperationID: "patchCatalogStatus",
+		Resource:    "catalogs",
+		Action:      "patch",
+		Versions: []EndpointMetadataVersion{
+			{Version: "v1beta1", DeprecatedAt: nil},
+		},
+	},
+	"PUT:/catalogs/{name}/status": {
+		OperationID: "replaceCatalogStatus",
+		Resource:    "catalogs",
 		Action:      "update",
 		Versions: []EndpointMetadataVersion{
 			{Version: "v1beta1", DeprecatedAt: nil},

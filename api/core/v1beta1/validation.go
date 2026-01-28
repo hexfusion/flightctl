@@ -740,6 +740,52 @@ func (rs *ResourceSync) ValidateUpdate(newObj *ResourceSync) []error {
 		rs.Status, newObj.Status)
 }
 
+func (c Catalog) Validate() []error {
+	allErrs := []error{}
+	allErrs = append(allErrs, validation.ValidateResourceName(c.Metadata.Name)...)
+	allErrs = append(allErrs, validation.ValidateLabels(c.Metadata.Labels)...)
+	allErrs = append(allErrs, validation.ValidateAnnotations(c.Metadata.Annotations)...)
+	return allErrs
+}
+
+// ValidateUpdate ensures immutable fields are unchanged for Catalog.
+func (c *Catalog) ValidateUpdate(newObj *Catalog) []error {
+	return validateImmutableCoreFields(c.Metadata.Name, newObj.Metadata.Name,
+		c.ApiVersion, newObj.ApiVersion,
+		c.Kind, newObj.Kind,
+		c.Status, newObj.Status)
+}
+
+func (ci CatalogItem) Validate() []error {
+	allErrs := []error{}
+	allErrs = append(allErrs, validation.ValidateResourceName(ci.Metadata.Name)...)
+	allErrs = append(allErrs, validation.ValidateLabels(ci.Metadata.Labels)...)
+	allErrs = append(allErrs, validation.ValidateAnnotations(ci.Metadata.Annotations)...)
+
+	if ci.Spec.Catalog == "" {
+		allErrs = append(allErrs, errors.New("spec.catalog is required"))
+	}
+	if ci.Spec.Type == "" {
+		allErrs = append(allErrs, errors.New("spec.type is required"))
+	}
+	if ci.Spec.Reference == "" {
+		allErrs = append(allErrs, errors.New("spec.reference is required"))
+	}
+	if len(ci.Spec.Channels) == 0 {
+		allErrs = append(allErrs, errors.New("spec.channels must have at least one entry"))
+	}
+	for channel, version := range ci.Spec.Channels {
+		if channel == "" {
+			allErrs = append(allErrs, errors.New("spec.channels: channel name cannot be empty"))
+		}
+		if version == "" {
+			allErrs = append(allErrs, fmt.Errorf("spec.channels[%s]: version cannot be empty", channel))
+		}
+	}
+
+	return allErrs
+}
+
 func (tv TemplateVersion) Validate() []error {
 	allErrs := []error{}
 	allErrs = append(allErrs, validation.ValidateResourceName(tv.Metadata.Name)...)
