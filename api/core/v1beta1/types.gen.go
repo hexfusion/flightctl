@@ -21,6 +21,7 @@ const (
 const (
 	AppTypeCompose   AppType = "compose"
 	AppTypeContainer AppType = "container"
+	AppTypeHelm      AppType = "helm"
 	AppTypeQuadlet   AppType = "quadlet"
 )
 
@@ -71,6 +72,26 @@ const (
 // Defines values for AuthStaticRoleAssignmentType.
 const (
 	AuthStaticRoleAssignmentTypeStatic AuthStaticRoleAssignmentType = "static"
+)
+
+// Defines values for CatalogAnnotationOverrideVisibility.
+const (
+	CatalogAnnotationOverrideVisibilityDeprecated CatalogAnnotationOverrideVisibility = "deprecated"
+	CatalogAnnotationOverrideVisibilityDraft      CatalogAnnotationOverrideVisibility = "draft"
+	CatalogAnnotationOverrideVisibilityPublished  CatalogAnnotationOverrideVisibility = "published"
+)
+
+// Defines values for CatalogItemDisplayInfoVisibility.
+const (
+	CatalogItemDisplayInfoVisibilityDeprecated CatalogItemDisplayInfoVisibility = "deprecated"
+	CatalogItemDisplayInfoVisibilityDraft      CatalogItemDisplayInfoVisibility = "draft"
+	CatalogItemDisplayInfoVisibilityPublished  CatalogItemDisplayInfoVisibility = "published"
+)
+
+// Defines values for CatalogSpecType.
+const (
+	Local  CatalogSpecType = "local"
+	Remote CatalogSpecType = "remote"
 )
 
 // Defines values for ConditionStatus.
@@ -407,6 +428,7 @@ const (
 // Defines values for ResourceKind.
 const (
 	ResourceKindAuthProvider              ResourceKind = "AuthProvider"
+	ResourceKindCatalog                   ResourceKind = "Catalog"
 	ResourceKindCertificateSigningRequest ResourceKind = "CertificateSigningRequest"
 	ResourceKindDevice                    ResourceKind = "Device"
 	ResourceKindEnrollmentRequest         ResourceKind = "EnrollmentRequest"
@@ -574,19 +596,17 @@ type ApplicationEnvVars struct {
 // ApplicationPort Port mapping in format "hostPort:containerPort" (e.g., "8080:80").
 type ApplicationPort = string
 
-// ApplicationProviderSpec defines model for ApplicationProviderSpec.
-type ApplicationProviderSpec struct {
+// ApplicationProviderBase Common properties for all application types.
+type ApplicationProviderBase struct {
 	// AppType The type of the application.
 	AppType AppType `json:"appType"`
 
-	// EnvVars Environment variable key-value pairs, injected during runtime. The key and value each must be between 1 and 253 characters.
-	EnvVars *map[string]string `json:"envVars,omitempty"`
-
 	// Name The application name must be 1–253 characters long, start with a letter or number, and contain no whitespace.
 	Name *string `json:"name,omitempty"`
+}
 
-	// RunAs The username of the system user this application should be run under. This is not the same as the user within any containers of the application (if applicable). Defaults to the user that the agent runs as (generally root) if not specified.
-	RunAs Username `json:"runAs,omitempty"`
+// ApplicationProviderSpec defines model for ApplicationProviderSpec.
+type ApplicationProviderSpec struct {
 	union json.RawMessage
 }
 
@@ -607,6 +627,12 @@ type ApplicationResources struct {
 
 // ApplicationStatusType Status of a single application on the device.
 type ApplicationStatusType string
+
+// ApplicationUser defines model for ApplicationUser.
+type ApplicationUser struct {
+	// RunAs The username of the system user this application should be run under. This is not the same as the user within any containers of the application (if applicable). Defaults to the user that the agent runs as (generally root) if not specified.
+	RunAs Username `json:"runAs,omitempty"`
+}
 
 // ApplicationVolume defines model for ApplicationVolume.
 type ApplicationVolume struct {
@@ -798,6 +824,198 @@ type BatchSequence struct {
 	Strategy RolloutStrategy `json:"strategy"`
 }
 
+// Catalog Catalog represents a source of application catalog items, mapping an alias to a registry.
+type Catalog struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.
+	ApiVersion string `json:"apiVersion"`
+
+	// Kind Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.
+	Kind string `json:"kind"`
+
+	// Metadata ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.
+	Metadata ObjectMeta `json:"metadata"`
+
+	// Spec CatalogSpec describes the configuration of a catalog source.
+	Spec CatalogSpec `json:"spec"`
+
+	// Status CatalogStatus represents the current status of a catalog source.
+	Status *CatalogStatus `json:"status,omitempty"`
+}
+
+// CatalogAnnotationConfig CatalogAnnotationConfig specifies how to handle catalog item annotations.
+type CatalogAnnotationConfig struct {
+	// Defaults Display and organizational information for a catalog item shown in UI/CLI.
+	Defaults *CatalogItemDisplayInfo `json:"defaults,omitempty"`
+
+	// Overrides Per-image metadata overrides without modifying the source.
+	Overrides *[]CatalogAnnotationOverride `json:"overrides,omitempty"`
+
+	// Required If true, hide items without FlightCtl annotations.
+	Required *bool `json:"required,omitempty"`
+}
+
+// CatalogAnnotationOverride CatalogAnnotationOverride applies metadata to items matching a pattern.
+type CatalogAnnotationOverride struct {
+	// Category Category to apply to matching items.
+	Category *string `json:"category,omitempty"`
+
+	// Match Glob pattern for app name (e.g., "prometheus-*").
+	Match *string `json:"match,omitempty"`
+
+	// Visibility Visibility to apply to matching items.
+	Visibility *CatalogAnnotationOverrideVisibility `json:"visibility,omitempty"`
+}
+
+// CatalogAnnotationOverrideVisibility Visibility to apply to matching items.
+type CatalogAnnotationOverrideVisibility string
+
+// CatalogCacheConfig CatalogCacheConfig specifies caching settings for remote catalog sources.
+type CatalogCacheConfig struct {
+	// Ttl Cache TTL duration (e.g., "5m", "1h").
+	Ttl *string `json:"ttl,omitempty"`
+}
+
+// CatalogItem CatalogItem represents an application template from a catalog. It provides default configuration values that can be customized when adding the application to a fleet.
+type CatalogItem struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object.
+	ApiVersion string `json:"apiVersion"`
+
+	// Kind Kind is a string value representing the REST resource this object represents.
+	Kind string `json:"kind"`
+
+	// Metadata ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.
+	Metadata ObjectMeta `json:"metadata"`
+
+	// Spec CatalogItemSpec defines the configuration for a catalog item.
+	Spec CatalogItemSpec `json:"spec"`
+}
+
+// CatalogItemDisplayInfo Display and organizational information for a catalog item shown in UI/CLI.
+type CatalogItemDisplayInfo struct {
+	// Category Category for organizing items (e.g., "monitoring", "networking").
+	Category *string `json:"category,omitempty"`
+
+	// DocumentationUrl Link to external documentation.
+	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+
+	// Homepage The homepage URL for the catalog item project.
+	Homepage *string `json:"homepage,omitempty"`
+
+	// Icon URL or data URI of the catalog item icon for display in UI.
+	Icon *string `json:"icon,omitempty"`
+
+	// Maintainer Maintainer or author of the catalog item (email or team name).
+	Maintainer *string `json:"maintainer,omitempty"`
+
+	// Name Human-readable display name shown in catalog listings.
+	Name *string `json:"name,omitempty"`
+
+	// Readme Detailed description of the catalog item, preferably in markdown format.
+	Readme *string `json:"readme,omitempty"`
+
+	// ShortDescription A brief one-line description of the catalog item.
+	ShortDescription *string `json:"shortDescription,omitempty"`
+
+	// SupportedArchitectures CPU architectures supported by this item (e.g., amd64, arm64). If omitted, assumes multi-arch manifest.
+	SupportedArchitectures *[]string `json:"supportedArchitectures,omitempty"`
+
+	// Version Display version for the catalog item (e.g., the recommended or latest version).
+	Version *string `json:"version,omitempty"`
+
+	// Visibility Visibility controls who can see/use the item.
+	Visibility *CatalogItemDisplayInfoVisibility `json:"visibility,omitempty"`
+}
+
+// CatalogItemDisplayInfoVisibility Visibility controls who can see/use the item.
+type CatalogItemDisplayInfoVisibility string
+
+// CatalogItemList CatalogItemList is a list of CatalogItems.
+type CatalogItemList struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.
+	ApiVersion string `json:"apiVersion"`
+
+	// Items List of CatalogItems.
+	Items []CatalogItem `json:"items"`
+
+	// Kind Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.
+	Kind string `json:"kind"`
+
+	// Metadata ListMeta describes metadata that synthetic resources must have, including lists and various status objects. A resource may have only one of {ObjectMeta, ListMeta}.
+	Metadata ListMeta `json:"metadata"`
+}
+
+// CatalogItemSpec CatalogItemSpec defines the configuration for a catalog item.
+type CatalogItemSpec struct {
+	// Catalog Name of the catalog this item belongs to.
+	Catalog string `json:"catalog"`
+
+	// Channels Channels map channel names to version tags. Common channels: stable, fast, preview. Example: {"stable": "v2.40.0", "fast": "v2.45.0"}.
+	Channels map[string]string `json:"channels"`
+
+	// DisplayInfo Display and organizational information for a catalog item shown in UI/CLI.
+	DisplayInfo *CatalogItemDisplayInfo `json:"displayInfo,omitempty"`
+
+	// Reference Base content reference (no version/tag). Interpretation depends on type: OCI reference for container-image/helm-chart, URL for video/ai-model, etc. The version comes from the selected channel.
+	Reference string `json:"reference"`
+
+	// Type Application type (e.g., container-image, helm-chart, quadlet). Determines how values are interpreted when rendering to ApplicationSpec.
+	Type string `json:"type"`
+
+	// Values Default configuration values. Interpretation depends on type: container-image -> envVars, helm-chart -> helm values.
+	Values *map[string]interface{} `json:"values,omitempty"`
+}
+
+// CatalogList CatalogList is a list of Catalogs.
+type CatalogList struct {
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.
+	ApiVersion string `json:"apiVersion"`
+
+	// Items List of Catalogs.
+	Items []Catalog `json:"items"`
+
+	// Kind Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.
+	Kind string `json:"kind"`
+
+	// Metadata ListMeta describes metadata that synthetic resources must have, including lists and various status objects. A resource may have only one of {ObjectMeta, ListMeta}.
+	Metadata ListMeta `json:"metadata"`
+}
+
+// CatalogSpec CatalogSpec describes the configuration of a catalog source.
+type CatalogSpec struct {
+	// Annotations CatalogAnnotationConfig specifies how to handle catalog item annotations.
+	Annotations *CatalogAnnotationConfig `json:"annotations,omitempty"`
+
+	// Cache CatalogCacheConfig specifies caching settings for remote catalog sources.
+	Cache *CatalogCacheConfig `json:"cache,omitempty"`
+
+	// Exclude Glob patterns for repositories to exclude (e.g., "*-dev").
+	Exclude *[]string `json:"exclude,omitempty"`
+
+	// Include Glob patterns for repositories to include (e.g., "prometheus-*").
+	Include *[]string `json:"include,omitempty"`
+
+	// Type Type of catalog source: "local" for FlightCtl-hosted manifests, "remote" for external registry.
+	Type CatalogSpecType `json:"type"`
+
+	// Url External registry URL (required for remote type).
+	Url *string `json:"url,omitempty"`
+}
+
+// CatalogSpecType Type of catalog source: "local" for FlightCtl-hosted manifests, "remote" for external registry.
+type CatalogSpecType string
+
+// CatalogStatus CatalogStatus represents the current status of a catalog source.
+type CatalogStatus struct {
+	// Conditions Current state of the catalog source.
+	Conditions []Condition `json:"conditions"`
+
+	// ItemCount Number of items in the catalog.
+	ItemCount *int `json:"itemCount,omitempty"`
+
+	// LastSyncTime Last time the catalog was synced from the source.
+	LastSyncTime *time.Time `json:"lastSyncTime,omitempty"`
+}
+
 // CertificateSigningRequest CertificateSigningRequest represents a request for a signed certificate from the CA.
 type CertificateSigningRequest struct {
 	// ApiVersion APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.
@@ -864,6 +1082,25 @@ type CertificateSigningRequestStatus struct {
 	Conditions []Condition `json:"conditions"`
 }
 
+// ComposeApplication defines model for ComposeApplication.
+type ComposeApplication struct {
+	// AppType The type of the application.
+	AppType AppType `json:"appType"`
+
+	// EnvVars Environment variable key-value pairs, injected during runtime. The key and value each must be between 1 and 253 characters.
+	EnvVars *map[string]string `json:"envVars,omitempty"`
+
+	// Name The application name must be 1–253 characters long, start with a letter or number, and contain no whitespace.
+	Name *string `json:"name,omitempty"`
+
+	// RunAs The username of the system user this application should be run under. This is not the same as the user within any containers of the application (if applicable). Defaults to the user that the agent runs as (generally root) if not specified.
+	RunAs Username `json:"runAs,omitempty"`
+
+	// Volumes List of application volumes.
+	Volumes *[]ApplicationVolume `json:"volumes,omitempty"`
+	union   json.RawMessage
+}
+
 // Condition defines model for Condition.
 type Condition struct {
 	// LastTransitionTime The last time the condition transitioned from one status to another.
@@ -912,6 +1149,42 @@ type ConditionType string
 // ConfigProviderSpec defines model for ConfigProviderSpec.
 type ConfigProviderSpec struct {
 	union json.RawMessage
+}
+
+// ContainerApplication defines model for ContainerApplication.
+type ContainerApplication struct {
+	// AppType The type of the application.
+	AppType AppType `json:"appType"`
+
+	// EnvVars Environment variable key-value pairs, injected during runtime. The key and value each must be between 1 and 253 characters.
+	EnvVars *map[string]string `json:"envVars,omitempty"`
+
+	// Image Reference to the image for this container.
+	Image string `json:"image"`
+
+	// Name The application name must be 1–253 characters long, start with a letter or number, and contain no whitespace.
+	Name *string `json:"name,omitempty"`
+
+	// Ports Port mappings.
+	Ports *[]ApplicationPort `json:"ports,omitempty"`
+
+	// Resources Resource constraints for the application.
+	Resources *ApplicationResources `json:"resources,omitempty"`
+
+	// RunAs The username of the system user this application should be run under. This is not the same as the user within any containers of the application (if applicable). Defaults to the user that the agent runs as (generally root) if not specified.
+	RunAs Username `json:"runAs,omitempty"`
+
+	// Volumes List of application volumes.
+	Volumes *[]ApplicationVolume `json:"volumes,omitempty"`
+}
+
+// ContainerApplicationProperties Properties for container application deployments.
+type ContainerApplicationProperties struct {
+	// Ports Port mappings.
+	Ports *[]ApplicationPort `json:"ports,omitempty"`
+
+	// Resources Resource constraints for the application.
+	Resources *ApplicationResources `json:"resources,omitempty"`
 }
 
 // CpuResourceMonitorSpec defines model for CpuResourceMonitorSpec.
@@ -1566,13 +1839,13 @@ type FileContent struct {
 // FileMetadata File metadata.
 type FileMetadata struct {
 	// Group The file's group, specified either as a name or numeric ID. Defaults to "root".
-	Group *string `json:"group,omitempty"`
+	Group string `json:"group,omitempty"`
 
 	// Mode The file's permission mode. You may specify the more familiar octal with a leading zero (e.g., 0644) or as a decimal without a leading zero (e.g., 420). Setuid/setgid/sticky bits are supported. If not specified, the permission mode for files defaults to 0644.
 	Mode *int `json:"mode,omitempty"`
 
 	// User The file's owner, specified either as a name or numeric ID. Defaults to "root".
-	User *Username `json:"user,omitempty"`
+	User Username `json:"user,omitempty"`
 }
 
 // FileOperation defines model for FileOperation.
@@ -1587,7 +1860,7 @@ type FileSpec struct {
 	ContentEncoding *EncodingType `json:"contentEncoding,omitempty"`
 
 	// Group The file's group, specified either as a name or numeric ID. Defaults to "root".
-	Group *string `json:"group,omitempty"`
+	Group string `json:"group,omitempty"`
 
 	// Mode The file's permission mode. You may specify the more familiar octal with a leading zero (e.g., 0644) or as a decimal without a leading zero (e.g., 420). Setuid/setgid/sticky bits are supported. If not specified, the permission mode for files defaults to 0644.
 	Mode *int `json:"mode,omitempty"`
@@ -1596,7 +1869,7 @@ type FileSpec struct {
 	Path string `json:"path"`
 
 	// User The file's owner, specified either as a name or numeric ID. Defaults to "root".
-	User *Username `json:"user,omitempty"`
+	User Username `json:"user,omitempty"`
 }
 
 // Fleet Fleet represents a set of devices.
@@ -1809,6 +2082,27 @@ type GitHubIntrospectionSpec struct {
 // GitHubIntrospectionSpecType The introspection type.
 type GitHubIntrospectionSpecType string
 
+// HelmApplication defines model for HelmApplication.
+type HelmApplication struct {
+	// AppType The type of the application.
+	AppType AppType `json:"appType"`
+
+	// Image Reference to the chart for this helm application.
+	Image string `json:"image"`
+
+	// Name The application name must be 1–253 characters long, start with a letter or number, and contain no whitespace.
+	Name *string `json:"name,omitempty"`
+
+	// Namespace The target namespace for the application deployment.
+	Namespace *string `json:"namespace,omitempty"`
+
+	// Values Configuration values for the application. Supports arbitrarily nested structures.
+	Values *map[string]interface{} `json:"values,omitempty"`
+
+	// ValuesFiles List of values files to apply during deployment. Files are relative paths and applied in array order before user-provided values.
+	ValuesFiles *[]string `json:"valuesFiles,omitempty"`
+}
+
 // HookAction defines model for HookAction.
 type HookAction struct {
 	// If Conditions that must be met for the action to be executed.
@@ -1909,15 +2203,6 @@ type HttpRepoSpec struct {
 type ImageApplicationProviderSpec struct {
 	// Image Reference to the OCI image or artifact for the application package.
 	Image string `json:"image"`
-
-	// Ports Port mappings.
-	Ports *[]ApplicationPort `json:"ports,omitempty"`
-
-	// Resources Resource constraints for the application.
-	Resources *ApplicationResources `json:"resources,omitempty"`
-
-	// Volumes List of application volumes.
-	Volumes *[]ApplicationVolume `json:"volumes,omitempty"`
 }
 
 // ImageMountVolumeProviderSpec Volume from OCI image mounted at specified path.
@@ -1951,9 +2236,6 @@ type ImageVolumeSource struct {
 type InlineApplicationProviderSpec struct {
 	// Inline A list of application content.
 	Inline []ApplicationContent `json:"inline"`
-
-	// Volumes List of application volumes.
-	Volumes *[]ApplicationVolume `json:"volumes,omitempty"`
 }
 
 // InlineConfigProviderSpec defines model for InlineConfigProviderSpec.
@@ -2057,7 +2339,7 @@ type KubernetesSecretProviderSpec struct {
 	// SecretRef The reference to a Kubernetes secret.
 	SecretRef struct {
 		// Group The file's group, specified either as a name or numeric ID. Defaults to "root".
-		Group *string `json:"group,omitempty"`
+		Group string `json:"group,omitempty"`
 
 		// MountPath Path in the device's file system at which the secret should be mounted.
 		MountPath string `json:"mountPath"`
@@ -2069,7 +2351,7 @@ type KubernetesSecretProviderSpec struct {
 		Namespace string `json:"namespace"`
 
 		// User The file's owner, specified either as a name or numeric ID. Defaults to "root".
-		User *Username `json:"user,omitempty"`
+		User Username `json:"user,omitempty"`
 	} `json:"secretRef"`
 }
 
@@ -2405,6 +2687,25 @@ type Permission struct {
 type PermissionList struct {
 	// Permissions List of permissions available to the user.
 	Permissions []Permission `json:"permissions"`
+}
+
+// QuadletApplication defines model for QuadletApplication.
+type QuadletApplication struct {
+	// AppType The type of the application.
+	AppType AppType `json:"appType"`
+
+	// EnvVars Environment variable key-value pairs, injected during runtime. The key and value each must be between 1 and 253 characters.
+	EnvVars *map[string]string `json:"envVars,omitempty"`
+
+	// Name The application name must be 1–253 characters long, start with a letter or number, and contain no whitespace.
+	Name *string `json:"name,omitempty"`
+
+	// RunAs The username of the system user this application should be run under. This is not the same as the user within any containers of the application (if applicable). Defaults to the user that the agent runs as (generally root) if not specified.
+	RunAs Username `json:"runAs,omitempty"`
+
+	// Volumes List of application volumes.
+	Volumes *[]ApplicationVolume `json:"volumes,omitempty"`
+	union   json.RawMessage
 }
 
 // ReferencedRepositoryUpdatedDetails defines model for ReferencedRepositoryUpdatedDetails.
@@ -2911,6 +3212,33 @@ type ListAuthProvidersParams struct {
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListCatalogsParams defines parameters for ListCatalogs.
+type ListCatalogsParams struct {
+	// Continue An optional parameter to query more results from the server. The value of the paramter must match the value of the 'continue' field in the previous list response.
+	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
+
+	// LabelSelector A selector to restrict the list of returned objects by their labels. Defaults to everything.
+	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+
+	// FieldSelector A selector to restrict the list of returned objects by their fields, supporting operators like '=', '==', and '!=' (e.g., "key1=value1,key2!=value2").
+	FieldSelector *string `form:"fieldSelector,omitempty" json:"fieldSelector,omitempty"`
+
+	// Limit The maximum number of results returned in the list response. The server will set the 'continue' field in the list response if more results exist. The continue value may then be specified as parameter in a subsequent query.
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListCatalogItemsParams defines parameters for ListCatalogItems.
+type ListCatalogItemsParams struct {
+	// Continue An optional parameter to query more results from the server.
+	Continue *string `form:"continue,omitempty" json:"continue,omitempty"`
+
+	// LabelSelector A selector to restrict the list of returned objects by their labels.
+	LabelSelector *string `form:"labelSelector,omitempty" json:"labelSelector,omitempty"`
+
+	// Limit The maximum number of results returned in the list response.
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListCertificateSigningRequestsParams defines parameters for ListCertificateSigningRequests.
 type ListCertificateSigningRequestsParams struct {
 	// Continue An optional parameter to query more results from the server. The value of the paramter must match the value of the 'continue' field in the previous list response.
@@ -3096,6 +3424,21 @@ type PatchAuthProviderApplicationJSONPatchPlusJSONRequestBody = PatchRequest
 
 // ReplaceAuthProviderJSONRequestBody defines body for ReplaceAuthProvider for application/json ContentType.
 type ReplaceAuthProviderJSONRequestBody = AuthProvider
+
+// CreateCatalogJSONRequestBody defines body for CreateCatalog for application/json ContentType.
+type CreateCatalogJSONRequestBody = Catalog
+
+// PatchCatalogApplicationJSONPatchPlusJSONRequestBody defines body for PatchCatalog for application/json-patch+json ContentType.
+type PatchCatalogApplicationJSONPatchPlusJSONRequestBody = PatchRequest
+
+// ReplaceCatalogJSONRequestBody defines body for ReplaceCatalog for application/json ContentType.
+type ReplaceCatalogJSONRequestBody = Catalog
+
+// PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody defines body for PatchCatalogStatus for application/json-patch+json ContentType.
+type PatchCatalogStatusApplicationJSONPatchPlusJSONRequestBody = PatchRequest
+
+// ReplaceCatalogStatusJSONRequestBody defines body for ReplaceCatalogStatus for application/json ContentType.
+type ReplaceCatalogStatusJSONRequestBody = Catalog
 
 // CreateCertificateSigningRequestJSONRequestBody defines body for CreateCertificateSigningRequest for application/json ContentType.
 type CreateCertificateSigningRequestJSONRequestBody = CertificateSigningRequest
@@ -3301,22 +3644,24 @@ func (a DeviceSystemInfo) MarshalJSON() ([]byte, error) {
 	return json.Marshal(object)
 }
 
-// AsImageApplicationProviderSpec returns the union data inside the ApplicationProviderSpec as a ImageApplicationProviderSpec
-func (t ApplicationProviderSpec) AsImageApplicationProviderSpec() (ImageApplicationProviderSpec, error) {
-	var body ImageApplicationProviderSpec
+// AsComposeApplication returns the union data inside the ApplicationProviderSpec as a ComposeApplication
+func (t ApplicationProviderSpec) AsComposeApplication() (ComposeApplication, error) {
+	var body ComposeApplication
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromImageApplicationProviderSpec overwrites any union data inside the ApplicationProviderSpec as the provided ImageApplicationProviderSpec
-func (t *ApplicationProviderSpec) FromImageApplicationProviderSpec(v ImageApplicationProviderSpec) error {
+// FromComposeApplication overwrites any union data inside the ApplicationProviderSpec as the provided ComposeApplication
+func (t *ApplicationProviderSpec) FromComposeApplication(v ComposeApplication) error {
+	v.AppType = "compose"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeImageApplicationProviderSpec performs a merge with any union data inside the ApplicationProviderSpec, using the provided ImageApplicationProviderSpec
-func (t *ApplicationProviderSpec) MergeImageApplicationProviderSpec(v ImageApplicationProviderSpec) error {
+// MergeComposeApplication performs a merge with any union data inside the ApplicationProviderSpec, using the provided ComposeApplication
+func (t *ApplicationProviderSpec) MergeComposeApplication(v ComposeApplication) error {
+	v.AppType = "compose"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3327,22 +3672,24 @@ func (t *ApplicationProviderSpec) MergeImageApplicationProviderSpec(v ImageAppli
 	return err
 }
 
-// AsInlineApplicationProviderSpec returns the union data inside the ApplicationProviderSpec as a InlineApplicationProviderSpec
-func (t ApplicationProviderSpec) AsInlineApplicationProviderSpec() (InlineApplicationProviderSpec, error) {
-	var body InlineApplicationProviderSpec
+// AsQuadletApplication returns the union data inside the ApplicationProviderSpec as a QuadletApplication
+func (t ApplicationProviderSpec) AsQuadletApplication() (QuadletApplication, error) {
+	var body QuadletApplication
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromInlineApplicationProviderSpec overwrites any union data inside the ApplicationProviderSpec as the provided InlineApplicationProviderSpec
-func (t *ApplicationProviderSpec) FromInlineApplicationProviderSpec(v InlineApplicationProviderSpec) error {
+// FromQuadletApplication overwrites any union data inside the ApplicationProviderSpec as the provided QuadletApplication
+func (t *ApplicationProviderSpec) FromQuadletApplication(v QuadletApplication) error {
+	v.AppType = "quadlet"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeInlineApplicationProviderSpec performs a merge with any union data inside the ApplicationProviderSpec, using the provided InlineApplicationProviderSpec
-func (t *ApplicationProviderSpec) MergeInlineApplicationProviderSpec(v InlineApplicationProviderSpec) error {
+// MergeQuadletApplication performs a merge with any union data inside the ApplicationProviderSpec, using the provided QuadletApplication
+func (t *ApplicationProviderSpec) MergeQuadletApplication(v QuadletApplication) error {
+	v.AppType = "quadlet"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3351,88 +3698,98 @@ func (t *ApplicationProviderSpec) MergeInlineApplicationProviderSpec(v InlineApp
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
+}
+
+// AsContainerApplication returns the union data inside the ApplicationProviderSpec as a ContainerApplication
+func (t ApplicationProviderSpec) AsContainerApplication() (ContainerApplication, error) {
+	var body ContainerApplication
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromContainerApplication overwrites any union data inside the ApplicationProviderSpec as the provided ContainerApplication
+func (t *ApplicationProviderSpec) FromContainerApplication(v ContainerApplication) error {
+	v.AppType = "container"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeContainerApplication performs a merge with any union data inside the ApplicationProviderSpec, using the provided ContainerApplication
+func (t *ApplicationProviderSpec) MergeContainerApplication(v ContainerApplication) error {
+	v.AppType = "container"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsHelmApplication returns the union data inside the ApplicationProviderSpec as a HelmApplication
+func (t ApplicationProviderSpec) AsHelmApplication() (HelmApplication, error) {
+	var body HelmApplication
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHelmApplication overwrites any union data inside the ApplicationProviderSpec as the provided HelmApplication
+func (t *ApplicationProviderSpec) FromHelmApplication(v HelmApplication) error {
+	v.AppType = "helm"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHelmApplication performs a merge with any union data inside the ApplicationProviderSpec, using the provided HelmApplication
+func (t *ApplicationProviderSpec) MergeHelmApplication(v HelmApplication) error {
+	v.AppType = "helm"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ApplicationProviderSpec) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"appType"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t ApplicationProviderSpec) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "compose":
+		return t.AsComposeApplication()
+	case "container":
+		return t.AsContainerApplication()
+	case "helm":
+		return t.AsHelmApplication()
+	case "quadlet":
+		return t.AsQuadletApplication()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
 }
 
 func (t ApplicationProviderSpec) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["appType"], err = json.Marshal(t.AppType)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'appType': %w", err)
-	}
-
-	if t.EnvVars != nil {
-		object["envVars"], err = json.Marshal(t.EnvVars)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'envVars': %w", err)
-		}
-	}
-
-	if t.Name != nil {
-		object["name"], err = json.Marshal(t.Name)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'name': %w", err)
-		}
-	}
-
-	object["runAs"], err = json.Marshal(t.RunAs)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'runAs': %w", err)
-	}
-
-	b, err = json.Marshal(object)
 	return b, err
 }
 
 func (t *ApplicationProviderSpec) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["appType"]; found {
-		err = json.Unmarshal(raw, &t.AppType)
-		if err != nil {
-			return fmt.Errorf("error reading 'appType': %w", err)
-		}
-	}
-
-	if raw, found := object["envVars"]; found {
-		err = json.Unmarshal(raw, &t.EnvVars)
-		if err != nil {
-			return fmt.Errorf("error reading 'envVars': %w", err)
-		}
-	}
-
-	if raw, found := object["name"]; found {
-		err = json.Unmarshal(raw, &t.Name)
-		if err != nil {
-			return fmt.Errorf("error reading 'name': %w", err)
-		}
-	}
-
-	if raw, found := object["runAs"]; found {
-		err = json.Unmarshal(raw, &t.RunAs)
-		if err != nil {
-			return fmt.Errorf("error reading 'runAs': %w", err)
-		}
-	}
-
 	return err
 }
 
@@ -4016,6 +4373,154 @@ func (t Batch_Limit) MarshalJSON() ([]byte, error) {
 
 func (t *Batch_Limit) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsImageApplicationProviderSpec returns the union data inside the ComposeApplication as a ImageApplicationProviderSpec
+func (t ComposeApplication) AsImageApplicationProviderSpec() (ImageApplicationProviderSpec, error) {
+	var body ImageApplicationProviderSpec
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromImageApplicationProviderSpec overwrites any union data inside the ComposeApplication as the provided ImageApplicationProviderSpec
+func (t *ComposeApplication) FromImageApplicationProviderSpec(v ImageApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeImageApplicationProviderSpec performs a merge with any union data inside the ComposeApplication, using the provided ImageApplicationProviderSpec
+func (t *ComposeApplication) MergeImageApplicationProviderSpec(v ImageApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsInlineApplicationProviderSpec returns the union data inside the ComposeApplication as a InlineApplicationProviderSpec
+func (t ComposeApplication) AsInlineApplicationProviderSpec() (InlineApplicationProviderSpec, error) {
+	var body InlineApplicationProviderSpec
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromInlineApplicationProviderSpec overwrites any union data inside the ComposeApplication as the provided InlineApplicationProviderSpec
+func (t *ComposeApplication) FromInlineApplicationProviderSpec(v InlineApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeInlineApplicationProviderSpec performs a merge with any union data inside the ComposeApplication, using the provided InlineApplicationProviderSpec
+func (t *ComposeApplication) MergeInlineApplicationProviderSpec(v InlineApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ComposeApplication) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["appType"], err = json.Marshal(t.AppType)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'appType': %w", err)
+	}
+
+	if t.EnvVars != nil {
+		object["envVars"], err = json.Marshal(t.EnvVars)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'envVars': %w", err)
+		}
+	}
+
+	if t.Name != nil {
+		object["name"], err = json.Marshal(t.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
+	}
+
+	object["runAs"], err = json.Marshal(t.RunAs)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'runAs': %w", err)
+	}
+
+	if t.Volumes != nil {
+		object["volumes"], err = json.Marshal(t.Volumes)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'volumes': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *ComposeApplication) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["appType"]; found {
+		err = json.Unmarshal(raw, &t.AppType)
+		if err != nil {
+			return fmt.Errorf("error reading 'appType': %w", err)
+		}
+	}
+
+	if raw, found := object["envVars"]; found {
+		err = json.Unmarshal(raw, &t.EnvVars)
+		if err != nil {
+			return fmt.Errorf("error reading 'envVars': %w", err)
+		}
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &t.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+	}
+
+	if raw, found := object["runAs"]; found {
+		err = json.Unmarshal(raw, &t.RunAs)
+		if err != nil {
+			return fmt.Errorf("error reading 'runAs': %w", err)
+		}
+	}
+
+	if raw, found := object["volumes"]; found {
+		err = json.Unmarshal(raw, &t.Volumes)
+		if err != nil {
+			return fmt.Errorf("error reading 'volumes': %w", err)
+		}
+	}
+
 	return err
 }
 
@@ -5013,6 +5518,154 @@ func (t OciAuth) MarshalJSON() ([]byte, error) {
 
 func (t *OciAuth) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsImageApplicationProviderSpec returns the union data inside the QuadletApplication as a ImageApplicationProviderSpec
+func (t QuadletApplication) AsImageApplicationProviderSpec() (ImageApplicationProviderSpec, error) {
+	var body ImageApplicationProviderSpec
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromImageApplicationProviderSpec overwrites any union data inside the QuadletApplication as the provided ImageApplicationProviderSpec
+func (t *QuadletApplication) FromImageApplicationProviderSpec(v ImageApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeImageApplicationProviderSpec performs a merge with any union data inside the QuadletApplication, using the provided ImageApplicationProviderSpec
+func (t *QuadletApplication) MergeImageApplicationProviderSpec(v ImageApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsInlineApplicationProviderSpec returns the union data inside the QuadletApplication as a InlineApplicationProviderSpec
+func (t QuadletApplication) AsInlineApplicationProviderSpec() (InlineApplicationProviderSpec, error) {
+	var body InlineApplicationProviderSpec
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromInlineApplicationProviderSpec overwrites any union data inside the QuadletApplication as the provided InlineApplicationProviderSpec
+func (t *QuadletApplication) FromInlineApplicationProviderSpec(v InlineApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeInlineApplicationProviderSpec performs a merge with any union data inside the QuadletApplication, using the provided InlineApplicationProviderSpec
+func (t *QuadletApplication) MergeInlineApplicationProviderSpec(v InlineApplicationProviderSpec) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t QuadletApplication) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["appType"], err = json.Marshal(t.AppType)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'appType': %w", err)
+	}
+
+	if t.EnvVars != nil {
+		object["envVars"], err = json.Marshal(t.EnvVars)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'envVars': %w", err)
+		}
+	}
+
+	if t.Name != nil {
+		object["name"], err = json.Marshal(t.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
+	}
+
+	object["runAs"], err = json.Marshal(t.RunAs)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'runAs': %w", err)
+	}
+
+	if t.Volumes != nil {
+		object["volumes"], err = json.Marshal(t.Volumes)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'volumes': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *QuadletApplication) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["appType"]; found {
+		err = json.Unmarshal(raw, &t.AppType)
+		if err != nil {
+			return fmt.Errorf("error reading 'appType': %w", err)
+		}
+	}
+
+	if raw, found := object["envVars"]; found {
+		err = json.Unmarshal(raw, &t.EnvVars)
+		if err != nil {
+			return fmt.Errorf("error reading 'envVars': %w", err)
+		}
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &t.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+	}
+
+	if raw, found := object["runAs"]; found {
+		err = json.Unmarshal(raw, &t.RunAs)
+		if err != nil {
+			return fmt.Errorf("error reading 'runAs': %w", err)
+		}
+	}
+
+	if raw, found := object["volumes"]; found {
+		err = json.Unmarshal(raw, &t.Volumes)
+		if err != nil {
+			return fmt.Errorf("error reading 'volumes': %w", err)
+		}
+	}
+
 	return err
 }
 

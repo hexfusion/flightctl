@@ -18,6 +18,8 @@ tags:
     description: Operations for authentication.
   - name: authprovider
     description: Operations on AuthProvider resources.
+  - name: catalog
+    description: Operations on Catalog resources.
   - name: certificatesigningrequest
     description: Operations on CertificateSigningRequest resources.
   - name: device
@@ -969,6 +971,616 @@ paths:
                 $ref: '#/components/schemas/Status'
         "409":
           description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+  /catalogs:
+    x-resource: catalogs
+    get:
+      tags:
+        - catalog
+      description: List Catalog resources.
+      operationId: listCatalogs
+      parameters:
+        - name: continue
+          in: query
+          description: An optional parameter to query more results from the server. The value of the paramter must match the value of the 'continue' field in the previous list response.
+          required: false
+          schema:
+            type: string
+        - name: labelSelector
+          in: query
+          description: A selector to restrict the list of returned objects by their labels. Defaults to everything.
+          schema:
+            type: string
+        - name: fieldSelector
+          in: query
+          description: A selector to restrict the list of returned objects by their fields, supporting operators like '=', '==', and '!=' (e.g., "key1=value1,key2!=value2").
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: The maximum number of results returned in the list response. The server will set the 'continue' field in the list response if more results exist. The continue value may then be specified as parameter in a subsequent query.
+          required: false
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogList'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+    post:
+      tags:
+        - catalog
+      description: Create a Catalog resource.
+      operationId: createCatalog
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Catalog'
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+  /catalogs/{name}:
+    x-resource: catalogs
+    get:
+      tags:
+        - catalog
+      description: Get a Catalog resource.
+      operationId: getCatalog
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource to get.
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+    put:
+      tags:
+        - catalog
+      description: Update a Catalog resource.
+      operationId: replaceCatalog
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource to update.
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Catalog'
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+    delete:
+      tags:
+        - catalog
+      description: Delete a Catalog resource.
+      operationId: deleteCatalog
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource to delete.
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+    patch:
+      tags:
+        - catalog
+      description: Patch a Catalog resource.
+      operationId: patchCatalog
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource to patch.
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json-patch+json:
+            schema:
+              $ref: '#/components/schemas/PatchRequest'
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+  /catalogs/{name}/status:
+    x-resource: catalogs
+    get:
+      tags:
+        - catalog
+      description: Get status of a Catalog resource.
+      operationId: getCatalogStatus
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource.
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+    put:
+      tags:
+        - catalog
+      description: Update status of a Catalog resource.
+      operationId: replaceCatalogStatus
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource.
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Catalog'
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+    patch:
+      tags:
+        - catalog
+      description: Patch status of a Catalog resource.
+      operationId: patchCatalogStatus
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource.
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json-patch+json:
+            schema:
+              $ref: '#/components/schemas/PatchRequest'
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Catalog'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "429":
+          description: Too Many Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "503":
+          description: Service Unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+  /catalogs/{name}/items:
+    x-resource: catalogs
+    get:
+      tags:
+        - catalog
+      description: List CatalogItems from a Catalog.
+      operationId: listCatalogItems
+      parameters:
+        - name: name
+          in: path
+          description: The name of the Catalog resource.
+          required: true
+          schema:
+            type: string
+        - name: continue
+          in: query
+          description: An optional parameter to query more results from the server.
+          required: false
+          schema:
+            type: string
+        - name: labelSelector
+          in: query
+          description: A selector to restrict the list of returned objects by their labels.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: The maximum number of results returned in the list response.
+          required: false
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItemList'
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+        "404":
+          description: Not Found
           content:
             application/json:
               schema:
@@ -4164,7 +4776,7 @@ components:
   schemas:
     ResourceKind:
       type: string
-      enum: [CertificateSigningRequest, EnrollmentRequest, Device, Fleet, Repository, ResourceSync, TemplateVersion, AuthProvider]
+      enum: [Catalog, CertificateSigningRequest, EnrollmentRequest, Device, Fleet, Repository, ResourceSync, TemplateVersion, AuthProvider]
       description: Resource types exposed via the API.
     DeviceDecommissionTargetType:
       type: string
@@ -4555,9 +5167,11 @@ components:
               type: string
               description: The file's owner, specified either as a name or numeric ID. Defaults to "root".
               x-go-type: Username
+              x-go-type-skip-optional-pointer: true
             group:
               type: string
               description: The file's group, specified either as a name or numeric ID. Defaults to "root".
+              x-go-type-skip-optional-pointer: true
           required:
             - name
             - namespace
@@ -4633,9 +5247,11 @@ components:
           type: string
           description: The file's owner, specified either as a name or numeric ID. Defaults to "root".
           x-go-type: Username
+          x-go-type-skip-optional-pointer: true
         group:
           type: string
           description: The file's group, specified either as a name or numeric ID. Defaults to "root".
+          x-go-type-skip-optional-pointer: true
     HttpConfigProviderSpec:
       type: object
       properties:
@@ -4662,35 +5278,65 @@ components:
       - name
       - httpRef
     ApplicationProviderSpec:
+      oneOf:
+        - $ref: '#/components/schemas/ComposeApplication'
+        - $ref: '#/components/schemas/QuadletApplication'
+        - $ref: '#/components/schemas/ContainerApplication'
+        - $ref: '#/components/schemas/HelmApplication'
+      discriminator:
+        propertyName: appType
+        mapping:
+          compose: '#/components/schemas/ComposeApplication'
+          quadlet: '#/components/schemas/QuadletApplication'
+          container: '#/components/schemas/ContainerApplication'
+          helm: '#/components/schemas/HelmApplication'
+
+    ApplicationProviderBase:
+      type: object
+      description: Common properties for all application types.
+      properties:
+        name:
+          type: string
+          description: The application name must be 1–253 characters long, start with a letter or number, and contain no whitespace.
+        appType:
+          $ref: '#/components/schemas/AppType'
+      required:
+        - appType
+
+    ComposeApplication:
       type: object
       allOf:
+        - $ref: '#/components/schemas/ApplicationProviderBase'
         - $ref: '#/components/schemas/ApplicationEnvVars'
-        - type: object
-          properties:
-            name:
-              type: string
-              description: The application name must be 1–253 characters long, start with a letter or number, and contain no whitespace.
-            appType:
-              $ref: '#/components/schemas/AppType'
-            runAs:
-              type: string
-              description: The username of the system user this application should be run under. This is not the same as the user within any containers of the application (if applicable). Defaults to the user that the agent runs as (generally root) if not specified.
-              x-go-type: Username
-              x-go-type-skip-optional-pointer: true
-          required: 
-            - appType
+        - $ref: '#/components/schemas/ApplicationUser'
+        - $ref: '#/components/schemas/ApplicationVolumeProviderSpec'
         - oneOf:
             - $ref: '#/components/schemas/ImageApplicationProviderSpec'
             - $ref: '#/components/schemas/InlineApplicationProviderSpec'
-    ImageApplicationProviderSpec:
+
+    QuadletApplication:
       type: object
       allOf:
+        - $ref: '#/components/schemas/ApplicationProviderBase'
+        - $ref: '#/components/schemas/ApplicationEnvVars'
+        - $ref: '#/components/schemas/ApplicationUser'
+        - $ref: '#/components/schemas/ApplicationVolumeProviderSpec'
+        - oneOf:
+            - $ref: '#/components/schemas/ImageApplicationProviderSpec'
+            - $ref: '#/components/schemas/InlineApplicationProviderSpec'
+
+    ContainerApplication:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/ApplicationProviderBase'
+        - $ref: '#/components/schemas/ApplicationEnvVars'
+        - $ref: '#/components/schemas/ApplicationUser'
         - $ref: '#/components/schemas/ApplicationVolumeProviderSpec'
         - type: object
           properties:
             image:
               type: string
-              description: Reference to the OCI image or artifact for the application package.
+              description: Reference to the image for this container.
             ports:
               type: array
               description: Port mappings.
@@ -4700,10 +5346,81 @@ components:
               $ref: '#/components/schemas/ApplicationResources'
           required:
             - image
+
+    HelmApplication:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/ApplicationProviderBase'
+        - type: object
+          properties:
+            image:
+              type: string
+              description: Reference to the chart for this helm application.
+            namespace:
+              type: string
+              description: The target namespace for the application deployment.
+              example: "my-app-namespace"
+            values:
+              type: object
+              additionalProperties: true
+              description: Configuration values for the application. Supports arbitrarily nested structures.
+              example:
+                replicaCount: 3
+                image:
+                  repository: nginx
+                  tag: "1.21"
+                service:
+                  type: ClusterIP
+                  port: 80
+                ingress:
+                  enabled: true
+                  hosts:
+                    - host: example.com
+                      paths:
+                        - path: /
+                          pathType: Prefix
+            valuesFiles:
+              type: array
+              description: List of values files to apply during deployment. Files are relative paths and applied in array order before user-provided values.
+              items:
+                type: string
+              example:
+                - "values-production.yaml"
+                - "values-overrides.yml"
+          required:
+            - image
+    ApplicationUser:
+      type: object
+      properties:
+        runAs:
+          type: string
+          description: The username of the system user this application should be run under. This is not the same as the user within any containers of the application (if applicable). Defaults to the user that the agent runs as (generally root) if not specified.
+          x-go-type: Username
+          x-go-type-skip-optional-pointer: true
+    ContainerApplicationProperties:
+      type: object
+      description: Properties for container application deployments.
+      properties:
+        ports:
+          type: array
+          description: Port mappings.
+          items:
+            $ref: '#/components/schemas/ApplicationPort'
+        resources:
+          $ref: '#/components/schemas/ApplicationResources'
+    ImageApplicationProviderSpec:
+      type: object
+      allOf:
+        - type: object
+          properties:
+            image:
+              type: string
+              description: Reference to the OCI image or artifact for the application package.
+          required:
+            - image
     InlineApplicationProviderSpec:
       type: object
       allOf:
-        - $ref: '#/components/schemas/ApplicationVolumeProviderSpec'
         - type: object
           properties:
             inline:
@@ -4839,11 +5556,12 @@ components:
         - "compose"
         - "quadlet"
         - "container"
+        - "helm"
       x-enum-varnames:
         - "AppTypeCompose"
         - "AppTypeQuadlet"
         - "AppTypeContainer"
-
+        - "AppTypeHelm"
     ResourceMonitor:
       oneOf:
         - $ref: '#/components/schemas/CpuResourceMonitorSpec'
@@ -5824,6 +6542,239 @@ components:
           description: 'List of resourcesync.'
           items:
             $ref: '#/components/schemas/ResourceSync'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - items
+    Catalog:
+      type: object
+      description: Catalog represents a source of application catalog items, mapping an alias to a registry.
+      properties:
+        apiVersion:
+          type: string
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.'
+        kind:
+          type: string
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.'
+        metadata:
+          $ref: '#/components/schemas/ObjectMeta'
+        spec:
+          $ref: '#/components/schemas/CatalogSpec'
+        status:
+          $ref: '#/components/schemas/CatalogStatus'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+    CatalogSpec:
+      type: object
+      description: CatalogSpec describes the configuration of a catalog source.
+      properties:
+        type:
+          type: string
+          enum: [local, remote]
+          description: 'Type of catalog source: "local" for FlightCtl-hosted manifests, "remote" for external registry.'
+        url:
+          type: string
+          description: External registry URL (required for remote type).
+        include:
+          type: array
+          items:
+            type: string
+          description: Glob patterns for repositories to include (e.g., "prometheus-*").
+        exclude:
+          type: array
+          items:
+            type: string
+          description: Glob patterns for repositories to exclude (e.g., "*-dev").
+        cache:
+          $ref: '#/components/schemas/CatalogCacheConfig'
+        annotations:
+          $ref: '#/components/schemas/CatalogAnnotationConfig'
+      required:
+        - type
+    CatalogCacheConfig:
+      type: object
+      description: CatalogCacheConfig specifies caching settings for remote catalog sources.
+      properties:
+        ttl:
+          type: string
+          description: 'Cache TTL duration (e.g., "5m", "1h").'
+    CatalogAnnotationConfig:
+      type: object
+      description: CatalogAnnotationConfig specifies how to handle catalog item annotations.
+      properties:
+        required:
+          type: boolean
+          description: If true, hide items without FlightCtl annotations.
+        defaults:
+          $ref: '#/components/schemas/CatalogItemDisplayInfo'
+        overrides:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogAnnotationOverride'
+          description: Per-image metadata overrides without modifying the source.
+    CatalogAnnotationOverride:
+      type: object
+      description: CatalogAnnotationOverride applies metadata to items matching a pattern.
+      properties:
+        match:
+          type: string
+          description: Glob pattern for app name (e.g., "prometheus-*").
+        category:
+          type: string
+          description: Category to apply to matching items.
+        visibility:
+          type: string
+          enum: [draft, published, deprecated]
+          description: Visibility to apply to matching items.
+    CatalogStatus:
+      type: object
+      description: CatalogStatus represents the current status of a catalog source.
+      properties:
+        conditions:
+          type: array
+          description: Current state of the catalog source.
+          items:
+            $ref: '#/components/schemas/Condition'
+        itemCount:
+          type: integer
+          description: Number of items in the catalog.
+        lastSyncTime:
+          type: string
+          format: date-time
+          description: Last time the catalog was synced from the source.
+      required:
+        - conditions
+    CatalogList:
+      type: object
+      description: CatalogList is a list of Catalogs.
+      properties:
+        apiVersion:
+          type: string
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.'
+        kind:
+          type: string
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.'
+        metadata:
+          $ref: '#/components/schemas/ListMeta'
+        items:
+          type: array
+          description: 'List of Catalogs.'
+          items:
+            $ref: '#/components/schemas/Catalog'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - items
+    CatalogItem:
+      type: object
+      description: CatalogItem represents an application template from a catalog. It provides default configuration values that can be customized when adding the application to a fleet.
+      properties:
+        apiVersion:
+          type: string
+          description: 'APIVersion defines the versioned schema of this representation of an object.'
+        kind:
+          type: string
+          description: 'Kind is a string value representing the REST resource this object represents.'
+        metadata:
+          $ref: '#/components/schemas/ObjectMeta'
+        spec:
+          $ref: '#/components/schemas/CatalogItemSpec'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+    CatalogItemSpec:
+      type: object
+      description: CatalogItemSpec defines the configuration for a catalog item.
+      properties:
+        catalog:
+          type: string
+          description: Name of the catalog this item belongs to.
+        type:
+          type: string
+          description: 'Application type (e.g., container-image, helm-chart, quadlet). Determines how values are interpreted when rendering to ApplicationSpec.'
+        reference:
+          type: string
+          description: 'Base content reference (no version/tag). Interpretation depends on type: OCI reference for container-image/helm-chart, URL for video/ai-model, etc. The version comes from the selected channel.'
+        channels:
+          type: object
+          additionalProperties:
+            type: string
+          description: 'Channels map channel names to version tags. Common channels: stable, fast, preview. Example: {"stable": "v2.40.0", "fast": "v2.45.0"}.'
+        values:
+          type: object
+          additionalProperties: true
+          description: 'Default configuration values. Interpretation depends on type: container-image -> envVars, helm-chart -> helm values.'
+        displayInfo:
+          $ref: '#/components/schemas/CatalogItemDisplayInfo'
+      required:
+        - catalog
+        - type
+        - reference
+        - channels
+    CatalogItemDisplayInfo:
+      type: object
+      description: Display and organizational information for a catalog item shown in UI/CLI.
+      properties:
+        name:
+          type: string
+          description: Human-readable display name shown in catalog listings.
+        shortDescription:
+          type: string
+          description: A brief one-line description of the catalog item.
+        readme:
+          type: string
+          description: Detailed description of the catalog item, preferably in markdown format.
+        version:
+          type: string
+          description: Display version for the catalog item (e.g., the recommended or latest version).
+        icon:
+          type: string
+          description: URL or data URI of the catalog item icon for display in UI.
+        visibility:
+          type: string
+          enum: [draft, published, deprecated]
+          description: 'Visibility controls who can see/use the item.'
+        category:
+          type: string
+          description: 'Category for organizing items (e.g., "monitoring", "networking").'
+        maintainer:
+          type: string
+          description: Maintainer or author of the catalog item (email or team name).
+        homepage:
+          type: string
+          description: The homepage URL for the catalog item project.
+        documentationUrl:
+          type: string
+          description: Link to external documentation.
+        supportedArchitectures:
+          type: array
+          items:
+            type: string
+          description: 'CPU architectures supported by this item (e.g., amd64, arm64). If omitted, assumes multi-arch manifest.'
+    CatalogItemList:
+      type: object
+      description: CatalogItemList is a list of CatalogItems.
+      properties:
+        apiVersion:
+          type: string
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources.'
+        kind:
+          type: string
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds.'
+        metadata:
+          $ref: '#/components/schemas/ListMeta'
+        items:
+          type: array
+          description: 'List of CatalogItems.'
+          items:
+            $ref: '#/components/schemas/CatalogItem'
       required:
         - apiVersion
         - kind

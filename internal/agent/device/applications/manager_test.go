@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/flightctl/flightctl/api/core/v1beta1"
 	"github.com/flightctl/flightctl/internal/agent/client"
@@ -24,6 +25,8 @@ import (
 )
 
 func TestManager(t *testing.T) {
+	bootTime := time.Now()
+
 	require := require.New(t)
 	testCases := []struct {
 		name         string
@@ -51,7 +54,7 @@ func TestManager(t *testing.T) {
 					// start new app
 					mockReadWriter.EXPECT().PathExists(gomock.Any()).Return(true, nil).AnyTimes(),
 					mockExecPodmanComposeUp(mockExec, "app-new", true, true),
-					mockExecPodmanEvents(mockExec),
+					mockExecPodmanEvents(mockExec, bootTime),
 				)
 			},
 			wantAppNames: []string{"app-new"},
@@ -68,7 +71,7 @@ func TestManager(t *testing.T) {
 					// start current app (first AfterUpdate)
 					mockReadWriter.EXPECT().PathExists(gomock.Any()).Return(true, nil).AnyTimes(),
 					mockExecPodmanComposeUp(mockExec, "app-remove", true, true),
-					mockExecPodmanEvents(mockExec),
+					mockExecPodmanEvents(mockExec, bootTime),
 
 					// remove current app (second AfterUpdate after syncProviders)
 					mockExecPodmanNetworkList(mockExec, "app-remove"),
@@ -94,7 +97,7 @@ func TestManager(t *testing.T) {
 					// start current app (first AfterUpdate)
 					mockReadWriter.EXPECT().PathExists(gomock.Any()).Return(true, nil).AnyTimes(),
 					mockExecPodmanComposeUp(mockExec, "app-update", true, true),
-					mockExecPodmanEvents(mockExec),
+					mockExecPodmanEvents(mockExec, bootTime),
 
 					// stop and remove current app (second AfterUpdate after syncProviders)
 					mockExecPodmanNetworkList(mockExec, "app-update"),
@@ -128,7 +131,7 @@ func TestManager(t *testing.T) {
 					mockExecSystemdListDependencies(mockSystemdMgr, appID, services),
 					mockExecSystemdListUnitsWithResults(mockSystemdMgr, services...),
 					mockSystemdMgr.EXPECT().Start(gomock.Any(), target).Return(nil),
-					mockExecPodmanEvents(mockExec),
+					mockExecPodmanEvents(mockExec, bootTime),
 				)
 			},
 			wantAppNames: []string{"quadlet-new"},
@@ -151,7 +154,7 @@ func TestManager(t *testing.T) {
 					mockExecSystemdListDependencies(mockSystemdMgr, appID, services),
 					mockExecSystemdListUnitsWithResults(mockSystemdMgr, services...),
 					mockSystemdMgr.EXPECT().Start(gomock.Any(), target).Return(nil),
-					mockExecPodmanEvents(mockExec),
+					mockExecPodmanEvents(mockExec, bootTime),
 
 					// remove quadlet app (second AfterUpdate after syncProviders)
 					mockExecSystemdListDependencies(mockSystemdMgr, appID, services),
@@ -185,7 +188,7 @@ func TestManager(t *testing.T) {
 					mockExecSystemdListDependencies(mockSystemdMgr, appID, services),
 					mockExecSystemdListUnitsWithResults(mockSystemdMgr, services...),
 					mockSystemdMgr.EXPECT().Start(gomock.Any(), target).Return(nil),
-					mockExecPodmanEvents(mockExec),
+					mockExecPodmanEvents(mockExec, bootTime),
 
 					// update: stop current quadlet app (remove phase)
 					mockExecSystemdListDependencies(mockSystemdMgr, appID, services),
@@ -247,13 +250,16 @@ func TestManager(t *testing.T) {
 				return mockReadWriter, nil
 			}
 
-			currentProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, rwFactory, tc.current)
+			currentProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, nil, rwFactory, tc.current)
 			require.NoError(err)
 
+			cliClients := client.NewCLIClients()
 			manager := &manager{
-				rwFactory:     rwFactory,
-				podmanMonitor: NewPodmanMonitor(log, podmanFactory, systemdFactory, "", rwMockFactory),
-				log:           log,
+				rwFactory:         rwFactory,
+				podmanMonitor:     NewPodmanMonitor(log, podmanFactory, systemdFactory, bootTime.Format(time.RFC3339), rwMockFactory),
+				kubernetesMonitor: NewKubernetesMonitor(log, cliClients, rwFactory),
+				clients:           cliClients,
+				log:               log,
 			}
 
 			// ensure the current applications are installed
@@ -266,7 +272,7 @@ func TestManager(t *testing.T) {
 			err = manager.AfterUpdate(ctx)
 			require.NoError(err)
 
-			desiredProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, rwFactory, tc.desired)
+			desiredProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, nil, rwFactory, tc.desired)
 			require.NoError(err)
 
 			err = syncProviders(ctx, log, manager, currentProviders, desiredProviders)
@@ -289,6 +295,8 @@ func TestManager(t *testing.T) {
 }
 
 func TestManagerRemoveApplication(t *testing.T) {
+	bootTime := time.Now()
+
 	require := require.New(t)
 
 	ctx := context.Background()
@@ -322,7 +330,7 @@ func TestManagerRemoveApplication(t *testing.T) {
 		mockExecPodmanComposeUp(mockExec, "app-remove", true, true),
 
 		// Monitor starts when AfterUpdate is called with apps
-		mockExecPodmanEvents(mockExec),
+		mockExecPodmanEvents(mockExec, bootTime),
 
 		// remove current app during syncProviders
 		mockExecPodmanNetworkList(mockExec, "app-remove"),
@@ -346,14 +354,16 @@ func TestManagerRemoveApplication(t *testing.T) {
 	var rwMockFactory fileio.ReadWriterFactory = func(username v1beta1.Username) (fileio.ReadWriter, error) {
 		return mockReadWriter, nil
 	}
+	cliClients := client.NewCLIClients()
 	manager := &manager{
-		rwFactory:     rwFactory,
-		podmanMonitor: NewPodmanMonitor(log, podmanFactory, systemdFactory, "", rwMockFactory),
-		log:           log,
+		rwFactory:         rwFactory,
+		podmanMonitor:     NewPodmanMonitor(log, podmanFactory, systemdFactory, bootTime.Format(time.RFC3339), rwMockFactory),
+		kubernetesMonitor: NewKubernetesMonitor(log, cliClients, rwFactory),
+		log:               log,
 	}
 
 	// Ensure current applications
-	currentProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, rwFactory, current)
+	currentProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, nil, rwFactory, current)
 	require.NoError(err)
 	for _, provider := range currentProviders {
 		err := manager.Ensure(ctx, provider)
@@ -366,10 +376,10 @@ func TestManagerRemoveApplication(t *testing.T) {
 
 	// Verify app exists and monitor is running
 	require.True(manager.podmanMonitor.Has(id))
-	require.True(manager.podmanMonitor.isRunning())
+	require.True(manager.podmanMonitor.isRunning(v1beta1.CurrentProcessUsername))
 
 	// Remove applications
-	desiredProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, rwFactory, desired)
+	desiredProviders, err := provider.FromDeviceSpec(ctx, log, podmanFactory, nil, rwFactory, desired)
 	require.NoError(err)
 	err = syncProviders(ctx, log, manager, currentProviders, desiredProviders)
 	require.NoError(err)
@@ -380,17 +390,17 @@ func TestManagerRemoveApplication(t *testing.T) {
 
 	// Verify app is removed and monitor is stopped
 	require.False(manager.podmanMonitor.Has(id))
-	require.False(manager.podmanMonitor.isRunning())
+	require.False(manager.podmanMonitor.isRunning(v1beta1.CurrentProcessUsername))
 }
 
-func mockExecPodmanEvents(mockExec *executer.MockExecuter) *gomock.Call {
+func mockExecPodmanEvents(mockExec *executer.MockExecuter, sinceTime time.Time) *gomock.Call {
 	return mockExec.EXPECT().CommandContext(
 		gomock.Any(),
 		"podman",
 		[]string{
 			"events",
 			"--format", "json",
-			"--since", "", // replace with actual value if needed
+			"--since", sinceTime.Format(time.RFC3339),
 			"--filter", "event=create",
 			"--filter", "event=init",
 			"--filter", "event=start",
@@ -459,22 +469,38 @@ func newTestDeviceWithApplications(t *testing.T, name string, details []testInli
 func newTestDeviceWithApplicationType(t *testing.T, name string, details []testInlineDetails, appType v1beta1.AppType) *v1beta1.DeviceSpec {
 	t.Helper()
 
-	inline := v1beta1.InlineApplicationProviderSpec{
+	inlineSpec := v1beta1.InlineApplicationProviderSpec{
 		Inline: make([]v1beta1.ApplicationContent, len(details)),
 	}
 
 	for i, d := range details {
-		inline.Inline[i] = v1beta1.ApplicationContent{
+		inlineSpec.Inline[i] = v1beta1.ApplicationContent{
 			Content: lo.ToPtr(d.Content),
 			Path:    d.Path,
 		}
 	}
 
-	providerSpec := v1beta1.ApplicationProviderSpec{
-		AppType: appType,
-		Name:    lo.ToPtr(name),
+	var providerSpec v1beta1.ApplicationProviderSpec
+
+	var err error
+	switch appType {
+	case v1beta1.AppTypeCompose:
+		var composeApp v1beta1.ComposeApplication
+		err = composeApp.FromInlineApplicationProviderSpec(inlineSpec)
+		require.NoError(t, err)
+		composeApp.AppType = appType
+		composeApp.Name = lo.ToPtr(name)
+		err = providerSpec.FromComposeApplication(composeApp)
+	case v1beta1.AppTypeQuadlet:
+		var quadletApp v1beta1.QuadletApplication
+		err = quadletApp.FromInlineApplicationProviderSpec(inlineSpec)
+		require.NoError(t, err)
+		quadletApp.AppType = appType
+		quadletApp.Name = lo.ToPtr(name)
+		err = providerSpec.FromQuadletApplication(quadletApp)
+	default:
+		t.Fatalf("unsupported app type for inline: %s", appType)
 	}
-	err := providerSpec.FromInlineApplicationProviderSpec(inline)
 	require.NoError(t, err)
 
 	applications := []v1beta1.ApplicationProviderSpec{providerSpec}
@@ -721,10 +747,12 @@ func TestCollectOCITargetsErrorHandling(t *testing.T) {
 				var rwMockFactory fileio.ReadWriterFactory = func(username v1beta1.Username) (fileio.ReadWriter, error) {
 					return mockReadWriter, nil
 				}
+				mockClients := client.NewCLIClients()
 				return &manager{
 					rwFactory:      rwFactory,
 					podmanMonitor:  NewPodmanMonitor(log, podmanFactory, systemdFactory, "", rwMockFactory),
 					podmanFactory:  podmanFactory,
+					clients:        mockClients,
 					log:            log,
 					ociTargetCache: provider.NewOCITargetCache(),
 					appDataCache:   provider.NewAppDataCache(),
@@ -781,6 +809,7 @@ func TestCollectOCITargetsErrorHandling(t *testing.T) {
 				var rwMockFactory fileio.ReadWriterFactory = func(username v1beta1.Username) (fileio.ReadWriter, error) {
 					return mockReadWriter, nil
 				}
+				mockClients := client.NewCLIClients()
 				return &manager{
 					rwFactory:      rwFactory,
 					podmanMonitor:  NewPodmanMonitor(log, podmanFactory, systemdFactory, "", rwMockFactory),
@@ -788,6 +817,7 @@ func TestCollectOCITargetsErrorHandling(t *testing.T) {
 					log:            log,
 					ociTargetCache: provider.NewOCITargetCache(),
 					appDataCache:   provider.NewAppDataCache(),
+					clients:        mockClients,
 				}
 			},
 			expectError:   true,
@@ -800,13 +830,14 @@ func TestCollectOCITargetsErrorHandling(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			manager := tc.setupManager(t)
 
-			providerSpec := v1beta1.ApplicationProviderSpec{
-				Name:    lo.ToPtr("test-app"),
-				AppType: v1beta1.AppTypeCompose,
-			}
-			_ = providerSpec.FromImageApplicationProviderSpec(v1beta1.ImageApplicationProviderSpec{
+			var composeApp v1beta1.ComposeApplication
+			_ = composeApp.FromImageApplicationProviderSpec(v1beta1.ImageApplicationProviderSpec{
 				Image: "quay.io/test/image:v1",
 			})
+			composeApp.Name = lo.ToPtr("test-app")
+			composeApp.AppType = v1beta1.AppTypeCompose
+			var providerSpec v1beta1.ApplicationProviderSpec
+			_ = providerSpec.FromComposeApplication(composeApp)
 			spec := &v1beta1.DeviceSpec{
 				Applications: &[]v1beta1.ApplicationProviderSpec{providerSpec},
 			}

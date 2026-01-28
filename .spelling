@@ -282,6 +282,16 @@ subcommand
 statefulsets
 daemonsets
 cronjobs
+imagebuilds
+imagebuild
+imageexport
+imageexports
+kubeconfig
+CRI
+containerd
+prefetching
+prefetches
+networkless
  - docs/user/references/api-resources.md
 namespacing
 approvedBy
@@ -482,6 +492,7 @@ SSL
 PL/pgSQL
 PL
 pgSQL
+PromQL
 values.yaml
 values.dev.yaml
 CN
