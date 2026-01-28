@@ -149,17 +149,18 @@ func (c *Catalog) GetStatusAsJson() ([]byte, error) {
 }
 
 // CatalogItem represents a cached catalog item in the database.
+// Each item represents an application with channels mapping to versions.
 type CatalogItem struct {
-	OrgID      uuid.UUID `gorm:"type:uuid;primaryKey"`
-	SourceName string    `gorm:"primaryKey"` // Name of the Catalog this item belongs to
-	AppName    string    `gorm:"primaryKey"` // Application name
-	Tag        string    `gorm:"primaryKey"` // Version tag
-	Digest     string
-	MediaType  string
-	Manifest   []byte                                 `gorm:"type:bytea"` // Raw OCI manifest JSON
-	Metadata   *JSONField[domain.CatalogItemMetadata] `gorm:"type:jsonb"`
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	OrgID       uuid.UUID `gorm:"type:uuid;primaryKey"`
+	CatalogName string    `gorm:"primaryKey"` // Name of the Catalog this item belongs to
+	AppName     string    `gorm:"primaryKey"` // Application name
+	Type        string    // Application type (container-image, helm-chart, quadlet, video, ai-model, etc.)
+	Reference   string    // Base content reference (no version/tag - version comes from channels)
+	Channels    *JSONField[map[string]string]             `gorm:"type:jsonb"` // Channel name -> version tag (e.g., {"stable": "v2.40.0", "fast": "v2.45.0"})
+	Values      *JSONField[map[string]any]                `gorm:"type:jsonb"` // Default configuration values
+	DisplayInfo *JSONField[domain.CatalogItemDisplayInfo] `gorm:"type:jsonb"` // Display metadata (name, icon, readme, etc.)
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (ci *CatalogItem) String() string {
@@ -176,18 +177,36 @@ func (ci *CatalogItem) ToApiResource() *domain.CatalogItem {
 		return &domain.CatalogItem{}
 	}
 
-	var metadata *domain.CatalogItemMetadata
-	if ci.Metadata != nil {
-		metadata = &ci.Metadata.Data
+	var values map[string]any
+	if ci.Values != nil {
+		values = ci.Values.Data
+	}
+
+	var channels map[string]string
+	if ci.Channels != nil {
+		channels = ci.Channels.Data
+	}
+
+	var displayInfo *domain.CatalogItemDisplayInfo
+	if ci.DisplayInfo != nil {
+		displayInfo = &ci.DisplayInfo.Data
 	}
 
 	return &domain.CatalogItem{
-		Name:      lo.ToPtr(fmt.Sprintf("%s/%s:%s", ci.SourceName, ci.AppName, ci.Tag)),
-		Digest:    lo.ToPtr(ci.Digest),
-		MediaType: lo.ToPtr(ci.MediaType),
-		Metadata:  metadata,
-		CreatedAt: lo.ToPtr(ci.CreatedAt.UTC()),
-		UpdatedAt: lo.ToPtr(ci.UpdatedAt.UTC()),
+		ApiVersion: CatalogItemAPIVersion(),
+		Kind:       domain.CatalogItemKind,
+		Metadata: domain.ObjectMeta{
+			Name:              lo.ToPtr(ci.AppName),
+			CreationTimestamp: lo.ToPtr(ci.CreatedAt.UTC()),
+		},
+		Spec: domain.CatalogItemSpec{
+			Catalog:     ci.CatalogName,
+			Type:        ci.Type,
+			Reference:   ci.Reference,
+			Channels:    channels,
+			Values:      &values,
+			DisplayInfo: displayInfo,
+		},
 	}
 }
 

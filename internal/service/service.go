@@ -132,9 +132,6 @@ type Service interface {
 	PatchCatalogStatus(ctx context.Context, orgId uuid.UUID, name string, patch domain.PatchRequest) (*domain.Catalog, domain.Status)
 	ListCatalogItems(ctx context.Context, orgId uuid.UUID, catalogName string, params domain.ListCatalogItemsParams) (*domain.CatalogItemList, domain.Status)
 
-	// OCI Distribution API (for agents)
-	GetCatalogManifest(ctx context.Context, orgId uuid.UUID, catalogName, appName, reference string) ([]byte, string, domain.Status)
-
 	// TemplateVersion
 	CreateTemplateVersion(ctx context.Context, orgId uuid.UUID, tv domain.TemplateVersion, immediateRollout bool) (*domain.TemplateVersion, domain.Status)
 	ListTemplateVersions(ctx context.Context, orgId uuid.UUID, fleet string, params domain.ListTemplateVersionsParams) (*domain.TemplateVersionList, domain.Status)

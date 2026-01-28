@@ -595,12 +595,6 @@ func (t *TracedService) ListCatalogItems(ctx context.Context, orgId uuid.UUID, c
 	endSpan(span, st)
 	return resp, st
 }
-func (t *TracedService) GetCatalogManifest(ctx context.Context, orgId uuid.UUID, catalogName, appName, reference string) ([]byte, string, domain.Status) {
-	ctx, span := startSpan(ctx, "GetCatalogManifest")
-	manifest, mediaType, st := t.inner.GetCatalogManifest(ctx, orgId, catalogName, appName, reference)
-	endSpan(span, st)
-	return manifest, mediaType, st
-}
 
 // --- TemplateVersion ---
 func (t *TracedService) CreateTemplateVersion(ctx context.Context, orgId uuid.UUID, tv domain.TemplateVersion, immediateRollout bool) (*domain.TemplateVersion, domain.Status) {

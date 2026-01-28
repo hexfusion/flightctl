@@ -13,7 +13,8 @@ type CatalogStatus = v1beta1.CatalogStatus
 
 type CatalogItem = v1beta1.CatalogItem
 type CatalogItemList = v1beta1.CatalogItemList
-type CatalogItemMetadata = v1beta1.CatalogItemMetadata
+type CatalogItemSpec = v1beta1.CatalogItemSpec
+type CatalogItemDisplayInfo = v1beta1.CatalogItemDisplayInfo
 
 // ========== Configuration Types ==========
 
@@ -24,7 +25,7 @@ type CatalogAnnotationOverride = v1beta1.CatalogAnnotationOverride
 // ========== Enum Types ==========
 
 type CatalogSpecType = v1beta1.CatalogSpecType
-type CatalogItemMetadataVisibility = v1beta1.CatalogItemMetadataVisibility
+type CatalogItemDisplayInfoVisibility = v1beta1.CatalogItemDisplayInfoVisibility
 type CatalogAnnotationOverrideVisibility = v1beta1.CatalogAnnotationOverrideVisibility
 
 // ========== Constants ==========
@@ -35,9 +36,9 @@ const (
 	CatalogSpecTypeRemote = v1beta1.Remote
 
 	// Visibility values
-	CatalogVisibilityDraft      = v1beta1.CatalogItemMetadataVisibilityDraft
-	CatalogVisibilityPublished  = v1beta1.CatalogItemMetadataVisibilityPublished
-	CatalogVisibilityDeprecated = v1beta1.CatalogItemMetadataVisibilityDeprecated
+	CatalogVisibilityDraft      = v1beta1.CatalogItemDisplayInfoVisibilityDraft
+	CatalogVisibilityPublished  = v1beta1.CatalogItemDisplayInfoVisibilityPublished
+	CatalogVisibilityDeprecated = v1beta1.CatalogItemDisplayInfoVisibilityDeprecated
 )
 
 // ========== List Params ==========

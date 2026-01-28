@@ -467,22 +467,6 @@ func (mr *MockServiceMockRecorder) GetCatalog(ctx, orgId, name any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCatalog", reflect.TypeOf((*MockService)(nil).GetCatalog), ctx, orgId, name)
 }
 
-// GetCatalogManifest mocks base method.
-func (m *MockService) GetCatalogManifest(ctx context.Context, orgId uuid.UUID, catalogName, appName, reference string) ([]byte, string, domain.Status) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCatalogManifest", ctx, orgId, catalogName, appName, reference)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(string)
-	ret2, _ := ret[2].(domain.Status)
-	return ret0, ret1, ret2
-}
-
-// GetCatalogManifest indicates an expected call of GetCatalogManifest.
-func (mr *MockServiceMockRecorder) GetCatalogManifest(ctx, orgId, catalogName, appName, reference any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCatalogManifest", reflect.TypeOf((*MockService)(nil).GetCatalogManifest), ctx, orgId, catalogName, appName, reference)
-}
-
 // GetCatalogStatus mocks base method.
 func (m *MockService) GetCatalogStatus(ctx context.Context, orgId uuid.UUID, name string) (*domain.Catalog, domain.Status) {
 	m.ctrl.T.Helper()

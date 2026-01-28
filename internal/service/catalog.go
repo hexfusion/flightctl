@@ -168,24 +168,3 @@ func (h *ServiceHandler) callbackCatalogDeleted(ctx context.Context, resourceKin
 	h.eventHandler.HandleGenericResourceDeletedEvents(ctx, resourceKind, orgId, name, oldResource, newResource, created, err)
 }
 
-// GetCatalogManifest retrieves an OCI manifest for a catalog item (OCI Distribution API).
-// Returns the manifest JSON bytes, the content type (media type), and status.
-func (h *ServiceHandler) GetCatalogManifest(ctx context.Context, orgId uuid.UUID, catalogName, appName, reference string) ([]byte, string, domain.Status) {
-	// Get the catalog to verify it exists and check its type
-	catalog, err := h.store.Catalog().Get(ctx, orgId, catalogName)
-	if err != nil {
-		return nil, "", StoreErrorToApiStatus(err, false, domain.CatalogKind, &catalogName)
-	}
-
-	// Get the manifest from the catalog item store
-	manifest, mediaType, err := h.store.Catalog().GetManifest(ctx, orgId, catalogName, appName, reference)
-	if err != nil {
-		return nil, "", StoreErrorToApiStatus(err, false, domain.CatalogItemKind, &appName)
-	}
-
-	// For remote catalogs, we may need to fetch from the upstream registry
-	// This is a placeholder for future implementation
-	_ = catalog
-
-	return manifest, mediaType, domain.StatusOK()
-}

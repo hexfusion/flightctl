@@ -28,9 +28,6 @@ type Catalog interface {
 
 	// CatalogItem operations
 	ListItems(ctx context.Context, orgId uuid.UUID, catalogName string, listParams ListParams) (*domain.CatalogItemList, error)
-
-	// OCI Distribution API operations
-	GetManifest(ctx context.Context, orgId uuid.UUID, catalogName, appName, reference string) ([]byte, string, error)
 }
 
 type CatalogStore struct {
@@ -94,13 +91,6 @@ func (s *CatalogStore) InitialMigration(ctx context.Context) error {
 	// Migrate CatalogItem table
 	if err := db.AutoMigrate(&model.CatalogItem{}); err != nil {
 		return err
-	}
-
-	// Create index for CatalogItem digest lookups
-	if !db.Migrator().HasIndex(&model.CatalogItem{}, "idx_catalog_items_digest") {
-		if err := db.Migrator().CreateIndex(&model.CatalogItem{}, "Digest"); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -204,15 +194,15 @@ func (s *CatalogStore) ListItems(ctx context.Context, orgId uuid.UUID, catalogNa
 
 	// Query catalog items for this source
 	var items []model.CatalogItem
-	query := db.Where("org_id = ? AND source_name = ?", orgId, catalogName)
+	query := db.Where("org_id = ? AND catalog_name = ?", orgId, catalogName)
 
 	// Apply limit if specified
 	if listParams.Limit > 0 {
 		query = query.Limit(listParams.Limit + 1) // +1 to check if there are more
 	}
 
-	// Order by app_name, tag for consistent pagination
-	query = query.Order("app_name ASC, tag ASC")
+	// Order by app_name for consistent pagination
+	query = query.Order("app_name ASC")
 
 	if err := query.Find(&items).Error; err != nil {
 		return nil, ErrorFromGormError(err)
@@ -232,38 +222,3 @@ func (s *CatalogStore) ListItems(ctx context.Context, orgId uuid.UUID, catalogNa
 	return &result, nil
 }
 
-// GetManifest retrieves an OCI manifest for a catalog item.
-// The reference can be a tag or a digest (sha256:...).
-// Returns the manifest bytes, the media type, and an error if any.
-func (s *CatalogStore) GetManifest(ctx context.Context, orgId uuid.UUID, catalogName, appName, reference string) ([]byte, string, error) {
-	db := s.getDB(ctx)
-
-	// First verify the catalog exists
-	var catalog model.Catalog
-	if err := db.Where("org_id = ? AND name = ?", orgId, catalogName).Take(&catalog).Error; err != nil {
-		return nil, "", ErrorFromGormError(err)
-	}
-
-	var item model.CatalogItem
-
-	// Check if the reference is a digest (starts with sha256:) or a tag
-	if len(reference) > 7 && reference[:7] == "sha256:" {
-		// Reference is a digest - look up by digest
-		if err := db.Where("org_id = ? AND source_name = ? AND app_name = ? AND digest = ?",
-			orgId, catalogName, appName, reference).Take(&item).Error; err != nil {
-			return nil, "", ErrorFromGormError(err)
-		}
-	} else {
-		// Reference is a tag
-		if err := db.Where("org_id = ? AND source_name = ? AND app_name = ? AND tag = ?",
-			orgId, catalogName, appName, reference).Take(&item).Error; err != nil {
-			return nil, "", ErrorFromGormError(err)
-		}
-	}
-
-	if len(item.Manifest) == 0 {
-		return nil, "", flterrors.ErrResourceNotFound
-	}
-
-	return item.Manifest, item.MediaType, nil
-}

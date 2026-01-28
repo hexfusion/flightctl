@@ -6610,7 +6610,7 @@ components:
           type: boolean
           description: If true, hide items without FlightCtl annotations.
         defaults:
-          $ref: '#/components/schemas/CatalogItemMetadata'
+          $ref: '#/components/schemas/CatalogItemDisplayInfo'
         overrides:
           type: array
           items:
@@ -6672,55 +6672,92 @@ components:
         - items
     CatalogItem:
       type: object
-      description: CatalogItem represents a cached application manifest from a catalog source.
+      description: CatalogItem represents an application template from a catalog. It provides default configuration values that can be customized when adding the application to a fleet.
+      properties:
+        apiVersion:
+          type: string
+          description: 'APIVersion defines the versioned schema of this representation of an object.'
+        kind:
+          type: string
+          description: 'Kind is a string value representing the REST resource this object represents.'
+        metadata:
+          $ref: '#/components/schemas/ObjectMeta'
+        spec:
+          $ref: '#/components/schemas/CatalogItemSpec'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+    CatalogItemSpec:
+      type: object
+      description: CatalogItemSpec defines the configuration for a catalog item.
+      properties:
+        catalog:
+          type: string
+          description: Name of the catalog this item belongs to.
+        type:
+          type: string
+          description: 'Application type (e.g., container-image, helm-chart, quadlet). Determines how values are interpreted when rendering to ApplicationSpec.'
+        reference:
+          type: string
+          description: 'Base content reference (no version/tag). Interpretation depends on type: OCI reference for container-image/helm-chart, URL for video/ai-model, etc. The version comes from the selected channel.'
+        channels:
+          type: object
+          additionalProperties:
+            type: string
+          description: 'Channels map channel names to version tags. Common channels: stable, fast, preview. Example: {"stable": "v2.40.0", "fast": "v2.45.0"}.'
+        values:
+          type: object
+          additionalProperties: true
+          description: 'Default configuration values. Interpretation depends on type: container-image -> envVars, helm-chart -> helm values.'
+        displayInfo:
+          $ref: '#/components/schemas/CatalogItemDisplayInfo'
+      required:
+        - catalog
+        - type
+        - reference
+        - channels
+    CatalogItemDisplayInfo:
+      type: object
+      description: Display and organizational information for a catalog item shown in UI/CLI.
       properties:
         name:
           type: string
-          description: 'Full item name in format "source/app:tag".'
-        digest:
+          description: Human-readable display name shown in catalog listings.
+        shortDescription:
           type: string
-          description: SHA256 digest of the manifest.
-        mediaType:
+          description: A brief one-line description of the catalog item.
+        readme:
           type: string
-          description: OCI media type of the content.
-        metadata:
-          $ref: '#/components/schemas/CatalogItemMetadata'
-        createdAt:
+          description: Detailed description of the catalog item, preferably in markdown format.
+        version:
           type: string
-          format: date-time
-          description: Time when the item was first cached.
-        updatedAt:
+          description: Display version for the catalog item (e.g., the recommended or latest version).
+        icon:
           type: string
-          format: date-time
-          description: Time when the item was last updated.
-    CatalogItemMetadata:
-      type: object
-      description: CatalogItemMetadata contains display and organizational metadata for a catalog item.
-      properties:
-        displayName:
-          type: string
-          description: Human-readable name shown in catalog listings.
+          description: URL or data URI of the catalog item icon for display in UI.
         visibility:
           type: string
           enum: [draft, published, deprecated]
           description: 'Visibility controls who can see/use the item.'
-        description:
-          type: string
-          description: Brief description of the application.
         category:
           type: string
           description: 'Category for organizing items (e.g., "monitoring", "networking").'
         maintainer:
           type: string
-          description: Maintainer contact (email or team name).
+          description: Maintainer or author of the catalog item (email or team name).
+        homepage:
+          type: string
+          description: The homepage URL for the catalog item project.
         documentationUrl:
           type: string
           description: Link to external documentation.
-        labels:
-          type: object
-          additionalProperties:
+        supportedArchitectures:
+          type: array
+          items:
             type: string
-          description: Custom key-value metadata (like Kubernetes labels).
+          description: 'CPU architectures supported by this item (e.g., amd64, arm64). If omitted, assumes multi-arch manifest.'
     CatalogItemList:
       type: object
       description: CatalogItemList is a list of CatalogItems.

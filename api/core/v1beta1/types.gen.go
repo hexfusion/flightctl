@@ -81,11 +81,11 @@ const (
 	CatalogAnnotationOverrideVisibilityPublished  CatalogAnnotationOverrideVisibility = "published"
 )
 
-// Defines values for CatalogItemMetadataVisibility.
+// Defines values for CatalogItemDisplayInfoVisibility.
 const (
-	CatalogItemMetadataVisibilityDeprecated CatalogItemMetadataVisibility = "deprecated"
-	CatalogItemMetadataVisibilityDraft      CatalogItemMetadataVisibility = "draft"
-	CatalogItemMetadataVisibilityPublished  CatalogItemMetadataVisibility = "published"
+	CatalogItemDisplayInfoVisibilityDeprecated CatalogItemDisplayInfoVisibility = "deprecated"
+	CatalogItemDisplayInfoVisibilityDraft      CatalogItemDisplayInfoVisibility = "draft"
+	CatalogItemDisplayInfoVisibilityPublished  CatalogItemDisplayInfoVisibility = "published"
 )
 
 // Defines values for CatalogSpecType.
@@ -844,8 +844,8 @@ type Catalog struct {
 
 // CatalogAnnotationConfig CatalogAnnotationConfig specifies how to handle catalog item annotations.
 type CatalogAnnotationConfig struct {
-	// Defaults CatalogItemMetadata contains display and organizational metadata for a catalog item.
-	Defaults *CatalogItemMetadata `json:"defaults,omitempty"`
+	// Defaults Display and organizational information for a catalog item shown in UI/CLI.
+	Defaults *CatalogItemDisplayInfo `json:"defaults,omitempty"`
 
 	// Overrides Per-image metadata overrides without modifying the source.
 	Overrides *[]CatalogAnnotationOverride `json:"overrides,omitempty"`
@@ -875,26 +875,59 @@ type CatalogCacheConfig struct {
 	Ttl *string `json:"ttl,omitempty"`
 }
 
-// CatalogItem CatalogItem represents a cached application manifest from a catalog source.
+// CatalogItem CatalogItem represents an application template from a catalog. It provides default configuration values that can be customized when adding the application to a fleet.
 type CatalogItem struct {
-	// CreatedAt Time when the item was first cached.
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
+	// ApiVersion APIVersion defines the versioned schema of this representation of an object.
+	ApiVersion string `json:"apiVersion"`
 
-	// Digest SHA256 digest of the manifest.
-	Digest *string `json:"digest,omitempty"`
+	// Kind Kind is a string value representing the REST resource this object represents.
+	Kind string `json:"kind"`
 
-	// MediaType OCI media type of the content.
-	MediaType *string `json:"mediaType,omitempty"`
+	// Metadata ObjectMeta is metadata that all persisted resources must have, which includes all objects users must create.
+	Metadata ObjectMeta `json:"metadata"`
 
-	// Metadata CatalogItemMetadata contains display and organizational metadata for a catalog item.
-	Metadata *CatalogItemMetadata `json:"metadata,omitempty"`
+	// Spec CatalogItemSpec defines the configuration for a catalog item.
+	Spec CatalogItemSpec `json:"spec"`
+}
 
-	// Name Full item name in format "source/app:tag".
+// CatalogItemDisplayInfo Display and organizational information for a catalog item shown in UI/CLI.
+type CatalogItemDisplayInfo struct {
+	// Category Category for organizing items (e.g., "monitoring", "networking").
+	Category *string `json:"category,omitempty"`
+
+	// DocumentationUrl Link to external documentation.
+	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+
+	// Homepage The homepage URL for the catalog item project.
+	Homepage *string `json:"homepage,omitempty"`
+
+	// Icon URL or data URI of the catalog item icon for display in UI.
+	Icon *string `json:"icon,omitempty"`
+
+	// Maintainer Maintainer or author of the catalog item (email or team name).
+	Maintainer *string `json:"maintainer,omitempty"`
+
+	// Name Human-readable display name shown in catalog listings.
 	Name *string `json:"name,omitempty"`
 
-	// UpdatedAt Time when the item was last updated.
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+	// Readme Detailed description of the catalog item, preferably in markdown format.
+	Readme *string `json:"readme,omitempty"`
+
+	// ShortDescription A brief one-line description of the catalog item.
+	ShortDescription *string `json:"shortDescription,omitempty"`
+
+	// SupportedArchitectures CPU architectures supported by this item (e.g., amd64, arm64). If omitted, assumes multi-arch manifest.
+	SupportedArchitectures *[]string `json:"supportedArchitectures,omitempty"`
+
+	// Version Display version for the catalog item (e.g., the recommended or latest version).
+	Version *string `json:"version,omitempty"`
+
+	// Visibility Visibility controls who can see/use the item.
+	Visibility *CatalogItemDisplayInfoVisibility `json:"visibility,omitempty"`
 }
+
+// CatalogItemDisplayInfoVisibility Visibility controls who can see/use the item.
+type CatalogItemDisplayInfoVisibility string
 
 // CatalogItemList CatalogItemList is a list of CatalogItems.
 type CatalogItemList struct {
@@ -911,32 +944,26 @@ type CatalogItemList struct {
 	Metadata ListMeta `json:"metadata"`
 }
 
-// CatalogItemMetadata CatalogItemMetadata contains display and organizational metadata for a catalog item.
-type CatalogItemMetadata struct {
-	// Category Category for organizing items (e.g., "monitoring", "networking").
-	Category *string `json:"category,omitempty"`
+// CatalogItemSpec CatalogItemSpec defines the configuration for a catalog item.
+type CatalogItemSpec struct {
+	// Catalog Name of the catalog this item belongs to.
+	Catalog string `json:"catalog"`
 
-	// Description Brief description of the application.
-	Description *string `json:"description,omitempty"`
+	// Channels Channels map channel names to version tags. Common channels: stable, fast, preview. Example: {"stable": "v2.40.0", "fast": "v2.45.0"}.
+	Channels map[string]string `json:"channels"`
 
-	// DisplayName Human-readable name shown in catalog listings.
-	DisplayName *string `json:"displayName,omitempty"`
+	// DisplayInfo Display and organizational information for a catalog item shown in UI/CLI.
+	DisplayInfo *CatalogItemDisplayInfo `json:"displayInfo,omitempty"`
 
-	// DocumentationUrl Link to external documentation.
-	DocumentationUrl *string `json:"documentationUrl,omitempty"`
+	// Reference Base content reference (no version/tag). Interpretation depends on type: OCI reference for container-image/helm-chart, URL for video/ai-model, etc. The version comes from the selected channel.
+	Reference string `json:"reference"`
 
-	// Labels Custom key-value metadata (like Kubernetes labels).
-	Labels *map[string]string `json:"labels,omitempty"`
+	// Type Application type (e.g., container-image, helm-chart, quadlet). Determines how values are interpreted when rendering to ApplicationSpec.
+	Type string `json:"type"`
 
-	// Maintainer Maintainer contact (email or team name).
-	Maintainer *string `json:"maintainer,omitempty"`
-
-	// Visibility Visibility controls who can see/use the item.
-	Visibility *CatalogItemMetadataVisibility `json:"visibility,omitempty"`
+	// Values Default configuration values. Interpretation depends on type: container-image -> envVars, helm-chart -> helm values.
+	Values *map[string]interface{} `json:"values,omitempty"`
 }
-
-// CatalogItemMetadataVisibility Visibility controls who can see/use the item.
-type CatalogItemMetadataVisibility string
 
 // CatalogList CatalogList is a list of Catalogs.
 type CatalogList struct {
