@@ -9,6 +9,7 @@ import (
 
 	"github.com/flightctl/flightctl/api/core/v1beta1"
 	"github.com/flightctl/flightctl/internal/agent/client"
+	deviceerrors "github.com/flightctl/flightctl/internal/agent/device/errors"
 	"github.com/flightctl/flightctl/internal/agent/device/status"
 	"github.com/flightctl/flightctl/pkg/executer"
 	"github.com/flightctl/flightctl/pkg/log"
@@ -48,13 +49,9 @@ type ManagerFactory func(user v1beta1.Username) (Manager, error)
 
 func NewManagerFactory(log *log.PrefixLogger) ManagerFactory {
 	return func(username v1beta1.Username) (Manager, error) {
-		execOpts, err := executer.LookupUserOptions(username)
-		if err != nil {
-			return nil, fmt.Errorf("creating executer: %w", err)
-		}
-		exec := executer.NewCommonExecuter(execOpts...)
-		systemdClient := client.NewSystemd(exec)
-		journalctlClient := client.NewJournalctl(exec)
+		rootExecuter := executer.NewCommonExecuter()
+		systemdClient := client.NewSystemd(rootExecuter, username)
+		journalctlClient := client.NewJournalctl(rootExecuter, username)
 
 		return NewManager(log, systemdClient, journalctlClient), nil
 	}
@@ -80,7 +77,7 @@ func NewManager(log *log.PrefixLogger, client *client.Systemd, journalctl *clien
 func (m *manager) EnsurePatterns(patterns []string) error {
 	if !reflect.DeepEqual(m.patterns, patterns) {
 		if err := validatePatterns(patterns); err != nil {
-			return fmt.Errorf("invalid patterns: %w", err)
+			return fmt.Errorf("%w: %w", deviceerrors.ErrInvalidPatterns, err)
 		}
 		m.patterns = patterns
 	}
