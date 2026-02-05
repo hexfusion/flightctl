@@ -1046,7 +1046,7 @@ The agent will automatically extract `app-files.tar.gz` when deploying the appli
 After building and pushing either package type, reference the image in `spec.applications[]`:
 
 ```yaml
-apiVersion: flightctl.io/v1alpha1
+apiVersion: flightctl.io/v1beta1
 kind: Device
 metadata:
   name: some_device_name
@@ -1171,7 +1171,7 @@ All Quadlet file names must be unique across all systemd service files on a Devi
 **Simple Container Example:**
 
 ```yaml
-apiVersion: flightctl.io/v1alpha1
+apiVersion: flightctl.io/v1beta1
 kind: Device
 metadata:
   name: some_device_name
@@ -1707,6 +1707,58 @@ When the device has completed its decommissioning steps, the `status.lifecycle.s
 
 ```console
 flightctl delete devices/<some_device_name>
+```
+
+## Understanding Device Error Messages
+
+Flight Control provides structured error messages within device status conditions to identify update or operation failures. These messages identify the time, phase, component, resource, and reason for a failure. Error categorization uses [gRPC status codes](https://grpc.github.io/grpc/core/md_doc_statuscodes.html) to provide consistent error classification across all operations.
+
+### Error Message Syntax
+
+Error messages follow this pattern:
+
+```text
+[timestamp] While <Phase>, <Component> failed [for "<Element>"]: <Category> issue - <Status Message>
+```
+
+| Field | Description | Allowable Values / Examples |
+|-------|-------------|----------------------------|
+| **Phase** | Update stage | `Preparing` (Preparation), `ApplyingUpdate` (Sync), `Rebooting` (Activation) |
+| **Component** | System area | `os`, `config`, `applications`, `resources`, `update policy`, `lifecycle`, `systemd` |
+| **Element** | Specific resource | File paths (`/etc/app.conf`), Service names, Volume names, Image refs |
+| **Category** | Functional area | See Error Categories table below. |
+| **Status** | Human-readable detail | Description of the specific error, derived from gRPC status codes. |
+
+### Error Categories
+
+| Category | Status Messages | Common Causes |
+|----------|----------------|---------------|
+| **Network** | "Service unavailable", "Request timed out" | Connectivity issues, DNS failure, registry unreachable |
+| **Configuration** | "Invalid configuration", "Precondition not met" | Invalid YAML/JSON, missing fields, policy waiting |
+| **Filesystem** | "Required resource not found", "Resource already exists" | Missing files, directory conflicts |
+| **Security** | "Permission denied", "Authentication failed" | Insufficient permissions, auth errors |
+| **Storage** | "Unrecoverable data loss detected" | Data corruption, storage hardware failure |
+| **Resource** | "Insufficient resources" | Disk full, Out of memory |
+| **System** | "Operation cancelled", "Internal error", "Not supported" | Internal faults, feature gaps, manual aborts |
+
+### Viewing Errors
+
+To view error conditions, retrieve the device status in YAML format:
+
+```console
+flightctl get device/<device-name> -o yaml
+```
+
+Output Example:
+
+```yaml
+status:
+  conditions:
+  - type: DeviceUpdating
+    status: "False"
+    reason: Error
+    # Breakdown: [Timestamp] While [Phase], [Component] failed for [Element]: [Category] - [Status Code]
+    message: "[2025-01-15 10:30:00 UTC] While Preparing, applications failed for \"myapp\": Network issue - Service unavailable"
 ```
 
 ## Scheduling Updates and Downloads

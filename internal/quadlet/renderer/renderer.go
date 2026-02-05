@@ -47,6 +47,7 @@ type RendererConfig struct {
 	SystemdUnitOutputDir     string `mapstructure:"systemd-dir"`
 	BinOutputDir             string `mapstructure:"bin-dir"`
 	VarTmpOutputDir          string `mapstructure:"var-tmp-dir"`
+	VarLibOutputDir          string `mapstructure:"var-lib-dir"`
 
 	// Source directories for binary search
 	BinSourceDirs []string `mapstructure:"bin-source-dirs"`
@@ -69,6 +70,10 @@ type RendererConfig struct {
 	Alertmanager       ImageConfig `mapstructure:"alertmanager"`
 	ImagebuilderApi    ImageConfig `mapstructure:"imagebuilder-api"`
 	ImagebuilderWorker ImageConfig `mapstructure:"imagebuilder-worker"`
+	Grafana            ImageConfig `mapstructure:"grafana"`
+	Prometheus         ImageConfig `mapstructure:"prometheus"`
+	TelemetryGateway   ImageConfig `mapstructure:"telemetry-gateway"`
+	UserinfoProxy      ImageConfig `mapstructure:"userinfo-proxy"`
 }
 
 func NewRendererConfig() *RendererConfig {
@@ -79,6 +84,7 @@ func NewRendererConfig() *RendererConfig {
 		SystemdUnitOutputDir:     "/usr/lib/systemd/system",
 		BinOutputDir:             "/usr/bin",
 		VarTmpOutputDir:          "/var/tmp",
+		VarLibOutputDir:          "/var/lib",
 	}
 }
 
